@@ -10,47 +10,62 @@
 #define ARGCHAR_MAX 32
 #define ARG_MAX 16
 
+
+// Used for pipelining and redirection, all information is stored here.
 struct arguments {
   char *args[ARG_MAX];
+  char *input;
+  char *output;
+  struct arguments *next;
 };
 
-// strtok to parse through each separated tokens, returns argLen for further use
+// strtok to parse through each separated arguments, returns argLen for further use
 int parseArgs(char **args, char *cmd) {
   int argLen = 0;
-  char *token;
-  token = strtok(cmd, " ");
+  
+  char * token = strtok(cmd, " ");
   while (token != NULL) {
     args[argLen++] = token;
     token = strtok(NULL, " ");
   }
+  
   args[argLen] = NULL;
   return argLen;
 }
+
+
+// Grab the command from stdin
+static void getCmd(char *cmd) {
+  char *nl;
+
+  /* Get command line */
+  char *temp = fgets(cmd, CMDLINE_MAX, stdin);
+
+  /* Print command line if stdin is not provided by terminal */
+  if (!isatty(STDIN_FILENO)) {
+    printf("%s", cmd);
+    fflush(stdout);
+  }
+
+  /* Remove trailing newline from command line */
+  nl = strchr(cmd, '\n');
+  if (nl)
+    *nl = '\0';
+}
+
+
 
 int main(void) {
   char cmd[CMDLINE_MAX];
 
   while (1) {
-    char *nl;
     int retval;
 
     /* Print prompt */
     printf("sshell$ ");
     fflush(stdout);
 
-    /* Get command line */
-    char *temps = fgets(cmd, CMDLINE_MAX, stdin);
-
-    /* Print command line if stdin is not provided by terminal */
-    if (!isatty(STDIN_FILENO)) {
-      printf("%s", cmd);
-      fflush(stdout);
-    }
-
-    /* Remove trailing newline from command line */
-    nl = strchr(cmd, '\n');
-    if (nl)
-      *nl = '\0';
+    getCmd(cmd);
 
     /* Builtin command */
     if (!strcmp(cmd, "exit")) {
@@ -58,6 +73,7 @@ int main(void) {
       break;
     }
 
+    
     // Copy cmd because strtok replaces the string's pointers with NULL when
     // parsing
     char temp[CMDLINE_MAX];
@@ -75,12 +91,15 @@ int main(void) {
 
         switch (*ptr) {
         case '<':
+          
           break;
 
         case '>':
+
           break;
 
         case '|':
+          
           break;
         }
     }

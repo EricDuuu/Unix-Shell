@@ -1,7 +1,7 @@
 compile = ["make", "-s"]
-run = "./main"
-entrypoint = "main.c"
-hidden = ["main", "main-debug", "**/*.o", "**/*.d", ".ccls-cache", "Makefile"]
+run = "./sshell"
+entrypoint = "sshell.c"
+hidden = ["main", "main-debug", "**/*.o", "**/*.d", ".ccls-cache"]
 
 [gitHubImport]
 requiredFiles = [".replit", "replit.nix", ".ccls-cache"]
@@ -48,7 +48,7 @@ externalConsole = false
 logging = {}
 miDebuggerPath = "gdb"
 name = "g++ - Build and debug active file"
-program = "./main-debug"
+program = "./sshell-debug"
 request = "launch"
 setupCommands = [
 	{ description = "Enable pretty-printing for gdb", ignoreFailures = true, text = "-enable-pretty-printing" }

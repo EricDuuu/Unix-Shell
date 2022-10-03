@@ -1,4 +1,6 @@
-/* For coding style and logic reference
+/*
+ For reference
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,27 +9,26 @@
 /*
  * Program helpers
  */
-#define die(...)
-do {
-  fprintf(stderr, ##__VA_ARGS__);
-  fprintf(stderr, "\n");
-  exit(1);
-} while (0)
+#define die(...)                                                               \
+  do {                                                                         \
+    fprintf(stderr, ##__VA_ARGS__);                                            \
+    fprintf(stderr, "\n");                                                     \
+    exit(1);                                                                   \
+  } while (0)
 
-#define die_perror(s)
-    do {
-  perror(s);
-  exit(1);
+#define die_perror(s)                                                          \
+  do {                                                                         \
+    perror(s);                                                                 \
+    exit(1);                                                                   \
+  } while (0)
+
+static inline void *xmalloc(size_t size) {
+  void *p = malloc(size);
+
+  if (!p)
+    die_perror("malloc");
+  return p;
 }
-while (0)
-
-  static inline void *xmalloc(size_t size) {
-    void *p = malloc(size);
-
-    if (!p)
-      die_perror("malloc");
-    return p;
-  }
 
 /*
  * Usage
