@@ -10,7 +10,6 @@
 #define ARGCHAR_MAX 32
 #define ARG_MAX 16
 
-
 // Used for pipelining and redirection, all information is stored here.
 struct arguments {
   char *args[ARG_MAX];
@@ -19,20 +18,20 @@ struct arguments {
   struct arguments *next;
 };
 
-// strtok to parse through each separated arguments, returns argLen for further use
+// strtok to parse through each separated arguments, returns argLen for further
+// use
 int parseArgs(char **args, char *cmd) {
   int argLen = 0;
-  
-  char * token = strtok(cmd, " ");
+
+  char *token = strtok(cmd, " ");
   while (token != NULL) {
     args[argLen++] = token;
     token = strtok(NULL, " ");
   }
-  
+
   args[argLen] = NULL;
   return argLen;
 }
-
 
 // Grab the command from stdin
 static void getCmd(char *cmd) {
@@ -53,8 +52,6 @@ static void getCmd(char *cmd) {
     *nl = '\0';
 }
 
-
-
 int main(void) {
   char cmd[CMDLINE_MAX];
 
@@ -73,7 +70,6 @@ int main(void) {
       break;
     }
 
-    
     // Copy cmd because strtok replaces the string's pointers with NULL when
     // parsing
     char temp[CMDLINE_MAX];
@@ -83,7 +79,7 @@ int main(void) {
     if (argLen > ARG_MAX)
       perror("Error: too many process arguments");
 
-    // Piping and redirection
+    // Piping and redirection; Should move to parsing
     for (int i = 1; i < argLen; i++) {
       char *ptr = strpbrk(args[i], "><|");
 
@@ -91,7 +87,7 @@ int main(void) {
 
         switch (*ptr) {
         case '<':
-          
+
           break;
 
         case '>':
@@ -99,13 +95,15 @@ int main(void) {
           break;
 
         case '|':
-          
+
           break;
         }
     }
 
     if (!fork()) { /* Fork off child process */
+
       // execvp automatically locates to $PATH no matter what
+
       execvp(args[0], args); /* Execute command */
       perror("execv");       /* Coming back here is an error */
       exit(1);
