@@ -1,0 +1,24 @@
+Modify function parseArgs to accept a pointer to struct:
+- change all occurences of char* args to arguments struct
+
+- Redirection:
+	-- case 1: spaces between the cmd string "echo hello > output.txt"
+	-- case 2: no spaces between the cmd string "echo hello>output.txt"
+	-- case 3?: spaces between only 1 cmd "echo hello> output.txt"
+	-- case 4?: opposite of case 3 "echo hello >output.txt"
+	== Error case: invalid output or input
+		== input: "echo > output.txt"
+		== output: "echo >"
+
+- Pipelining:
+	-- Linked list of struct arguments for each command in pipeline
+	-- TBA
+
+
+
+
+
+
+cd, pwd, and file stack:
+	-- TBA
+

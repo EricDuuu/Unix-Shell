@@ -29,6 +29,27 @@ int parseArgs(char **args, char *cmd) {
     token = strtok(NULL, " ");
   }
 
+  // Piping and redirection; Should move to parsing
+  for (int i = 1; i < argLen; i++) {
+    char *ptr = strpbrk(args[i], "><|");
+
+    if (ptr != NULL)
+
+      switch (*ptr) {
+      case '<':
+
+        break;
+
+      case '>':
+
+        break;
+
+      case '|':
+
+        break;
+      }
+  }
+
   args[argLen] = NULL;
   return argLen;
 }
@@ -51,6 +72,8 @@ static void getCmd(char *cmd) {
   if (nl)
     *nl = '\0';
 }
+
+
 
 int main(void) {
   char cmd[CMDLINE_MAX];
@@ -75,34 +98,15 @@ int main(void) {
     char temp[CMDLINE_MAX];
     strcpy(temp, cmd);
     char *args[ARG_MAX];
+
     int argLen = parseArgs(args, temp);
+
     if (argLen > ARG_MAX)
       perror("Error: too many process arguments");
 
-    // Piping and redirection; Should move to parsing
-    for (int i = 1; i < argLen; i++) {
-      char *ptr = strpbrk(args[i], "><|");
-
-      if (ptr != NULL)
-
-        switch (*ptr) {
-        case '<':
-
-          break;
-
-        case '>':
-
-          break;
-
-        case '|':
-
-          break;
-        }
-    }
-
     if (!fork()) { /* Fork off child process */
 
-      // execvp automatically locates to $PATH no matter what
+      // execvp automatically locates to $PATH
 
       execvp(args[0], args); /* Execute command */
       perror("execv");       /* Coming back here is an error */
