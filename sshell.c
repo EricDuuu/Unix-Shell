@@ -10,28 +10,38 @@
 #define ARGCHAR_MAX 32
 #define ARG_MAX 16
 
-// Used for pipelining and redirection, all information is stored here.
-struct arguments {
+// Implemented with pipelining and redirection in mind
+// all command info is stored here.
+struct command {
   char *args[ARG_MAX];
   char *input;
   char *output;
-  struct arguments *next;
+  struct command *next;
 };
 
 // strtok to parse through each separated arguments, returns argLen for further
 // use
-int parseArgs(char **args, char *cmd) {
+int parseArgs(struct command *cmd, char *buffer) {
   int argLen = 0;
 
-  char *token = strtok(cmd, " ");
+  char *token = strtok(buffer, " ");
   while (token != NULL) {
-    args[argLen++] = token;
+
+    // Case where the symbol is spaced between commands
+    if (strcmp(token, "<") == 0 || strcmp(token, ">") == 0 ||
+        strcmp(token, "|") == 0) {
+    }
+
+    char *ptr = strpbrk(token, "><|");
+
+    cmd->args[argLen] = token;
+    argLen++;
     token = strtok(NULL, " ");
   }
 
   // Piping and redirection; Should move to parsing
   for (int i = 1; i < argLen; i++) {
-    char *ptr = strpbrk(args[i], "><|");
+    char *ptr = strpbrk(cmd->args[i], "><|");
 
     if (ptr != NULL)
 
@@ -50,45 +60,43 @@ int parseArgs(char **args, char *cmd) {
       }
   }
 
-  args[argLen] = NULL;
+  cmd->args[argLen] = NULL;
   return argLen;
 }
 
-// Grab the command from stdin
-static void getCmd(char *cmd) {
+// Grab the command from stdin and sanitize for execution given by skeleton code
+static void getCmd(char *buffer) {
   char *nl;
 
-  /* Get command line */
-  char *temp = fgets(cmd, CMDLINE_MAX, stdin);
+  // Get command line
+  char *temp = fgets(buffer, CMDLINE_MAX, stdin);
 
-  /* Print command line if stdin is not provided by terminal */
+  // Print command line if stdin is not provided by terminal
   if (!isatty(STDIN_FILENO)) {
-    printf("%s", cmd);
+    printf("%s", buffer);
     fflush(stdout);
   }
 
-  /* Remove trailing newline from command line */
-  nl = strchr(cmd, '\n');
+  // Remove trailing newline from command line
+  nl = strchr(buffer, '\n');
   if (nl)
     *nl = '\0';
 }
 
-
-
 int main(void) {
-  char cmd[CMDLINE_MAX];
+  char buffer[CMDLINE_MAX];
+  struct command cmd;
 
   while (1) {
     int retval;
 
     /* Print prompt */
-    printf("sshell$ ");
+    printf("The One Piece is REAL!$ ");
     fflush(stdout);
-
-    getCmd(cmd);
+    getCmd(buffer);
 
     /* Builtin command */
-    if (!strcmp(cmd, "exit")) {
+    if (!strcmp(buffer, "exit")) {
       fprintf(stderr, "Bye...\n");
       break;
     }
@@ -96,10 +104,9 @@ int main(void) {
     // Copy cmd because strtok replaces the string's pointers with NULL when
     // parsing
     char temp[CMDLINE_MAX];
-    strcpy(temp, cmd);
-    char *args[ARG_MAX];
+    strcpy(temp, buffer);
 
-    int argLen = parseArgs(args, temp);
+    int argLen = parseArgs(&cmd, temp);
 
     if (argLen > ARG_MAX)
       perror("Error: too many process arguments");
@@ -108,15 +115,15 @@ int main(void) {
 
       // execvp automatically locates to $PATH
 
-      execvp(args[0], args); /* Execute command */
-      perror("execv");       /* Coming back here is an error */
+      execvp(cmd.args[0], cmd.args); /* Execute command */
+      perror("execv");               /* Coming back here is an error */
       exit(1);
     } else {
       /* Parent */
       waitpid(-1, &retval, 0); /* Wait for child to exit */
     }
 
-    fprintf(stdout, "Return status value for '%s': %d\n", cmd, retval);
+    fprintf(stdout, "Return status value for '%s': %d\n", buffer, retval);
   }
 
   return EXIT_SUCCESS;
