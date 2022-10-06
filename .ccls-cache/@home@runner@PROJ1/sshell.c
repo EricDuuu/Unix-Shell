@@ -19,6 +19,7 @@ struct command {
   struct command *next;
 };
 
+// RETURN;  -1: error, errors are printed in the error function
 // strtok to parse through each separated arguments, returns argLen for further
 // use
 int parseArgs(struct command *cmd, char *buffer) {
@@ -33,7 +34,8 @@ int parseArgs(struct command *cmd, char *buffer) {
 
     char *ptr = strpbrk(token, "><|");
     char *test = current->input;
-    // Case where the symbol is spaced between commands
+
+    // Case: command<input where the symbol is spaced between commands
     if (strcmp(token, "<") == 0 || strcmp(token, ">") == 0 ||
         strcmp(token, "|") == 0) {
 
@@ -61,24 +63,74 @@ int parseArgs(struct command *cmd, char *buffer) {
         current = current->next;
 
         // Remember to reset argLen since it's a new command
+        argLen = 0;
         break;
       }
 
-    } else if (ptr != NULL) { // Case where there are spaces
+    } else if (ptr != NULL) {
+      // Cases: command< input, command <input, command<input
+      // where there are no spaces in between
 
       switch (*ptr) {
       case '<':
         
+        if (*(ptr + 1) == '\0') { // Case: command< input
+          
+          int pos = strcspn(token, "<");
+          current->args[argLen++] = strndup(token,pos);
+          token = strtok(NULL, " ");
+          current->input = strdup(token);
+          
+        } else {
+          // Case: command <input
+          current->input = strdup(ptr + 1);
+          if (*ptr != *token) {//Case: command<input
+            int pos = strcspn(token, "<");
+            current->args[argLen++] = strndup(token,pos);
+          }
+        }
+        totalLen++;
+        argLen++;
         break;
 
       case '>':
 
+        if (*(ptr + 1) == '\0') { // Case: command> output
+          int pos = strcspn(token, ">");
+          current->args[argLen++] = strndup(token,pos);
+          token = strtok(NULL, " ");
+          current->output = strdup(token);
+        } else {
+          // Case: command >output
+          current->output = strdup(ptr + 1);
+          
+          if (*ptr != *token) { //Case: command>output
+            int pos = strcspn(token, ">");
+            current->args[argLen++] = strndup(token,pos);
+          }
+        }
+        totalLen++;
+        argLen++;
         break;
 
       case '|':
 
+        if(*(ptr + 1) == '\0' || *ptr != *token){
+          int pos = strcspn(token, "|");
+          current->args[argLen++] = strndup(token,pos);
+        }
+        
+        current->args[argLen] = NULL;
+        current->next = (struct command *)malloc(sizeof(struct command));
+        current = current->next;
+        argLen = 0;
+        
+        if (*(ptr + 1) != '\0') // Case: command |command, command|command
+          current->args[argLen++] = ptr + 1;
+          
         break;
       }
+
       totalLen++;
       argLen++;
 
@@ -86,7 +138,6 @@ int parseArgs(struct command *cmd, char *buffer) {
       current->args[argLen++] = token;
       totalLen++;
     }
-
     token = strtok(NULL, " ");
   }
 

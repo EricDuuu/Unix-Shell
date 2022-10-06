@@ -1,4 +1,6 @@
-Priority: get it working with no error management -> errors -> commenting -> readme.md document
+
+Priority: get it working with no error management -> errors -> commenting -> 
+          readme.md document
 
 Modify function parseArgs to accept a pointer to struct:
 X- change all occurences of char* args to arguments struct
@@ -25,6 +27,10 @@ cd, pwd, and file stack:
 	-- TBA
 
 
+
+Error checking plan: error functions that return certain values and 
+those functions return certain values back to the main function so 
+it chooses whether to run or not
 
 Parsing Errors:
 - "Error: too many process arguments"
