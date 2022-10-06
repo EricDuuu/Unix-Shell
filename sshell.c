@@ -24,7 +24,9 @@ struct command {
 int parseArgs(struct command *cmd, char *buffer) {
   struct command *current = cmd;
 
+  // totalLen for the cases where there is pipelining
   int argLen = 0;
+  int totalLen = 0;
 
   char *token = strtok(buffer, " ");
   while (token != NULL) {
@@ -41,55 +43,55 @@ int parseArgs(struct command *cmd, char *buffer) {
       case '<':
         token = strtok(NULL, " ");
         current->input = strdup(token);
+        totalLen++;
+        argLen++;
         break;
 
       case '>':
         token = strtok(NULL, " ");
         current->output = strdup(token);
+        argLen++;
+        totalLen++;
         break;
 
       case '|':
         // Next iteration begins at the command after the pipeline
+        current->args[argLen] = NULL;
         current->next = (struct command *)malloc(sizeof(struct command));
         current = current->next;
+
+        // Remember to reset argLen since it's a new command
         break;
       }
 
+    } else if (ptr != NULL) { // Case where there are spaces
+
+      switch (*ptr) {
+      case '<':
+        
+        break;
+
+      case '>':
+
+        break;
+
+      case '|':
+
+        break;
+      }
+      totalLen++;
       argLen++;
 
-    } else if (ptr != NULL) { // Case where there are spaces
-      argLen++;
     } else { // Case where there aren't any special symbols
       current->args[argLen++] = token;
+      totalLen++;
     }
 
     token = strtok(NULL, " ");
   }
 
-  // Piping and redirection; Should move to parsing
-
-  /*
-  char *ptr = strpbrk(cmd->args[i], "><|");
-
-  if (ptr != NULL)
-
-    switch (*ptr) {
-    case '<':
-
-      break;
-
-    case '>':
-
-      break;
-
-    case '|':
-
-      break;
-    }
-  */
-
-  // Needs to end in NULL to pass into execvp
-  cmd->args[argLen] = NULL;
+  // Last command in pipeline or when there are no pipelines
+  current->args[argLen] = NULL;
   return argLen;
 }
 
