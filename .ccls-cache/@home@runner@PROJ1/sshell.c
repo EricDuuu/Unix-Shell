@@ -14,8 +14,8 @@
 // all command info is stored here.
 struct command {
   char *args[ARG_MAX];
-  char *input;
-  char *output;
+  char *input[ARGCHAR_MAX];
+  char *output[ARGCHAR_MAX];
   struct command *next;
 };
 
@@ -27,39 +27,44 @@ int parseArgs(struct command *cmd, char *buffer) {
   char *token = strtok(buffer, " ");
   while (token != NULL) {
 
+    char *ptr = strpbrk(token, "><|");
+    
     // Case where the symbol is spaced between commands
     if (strcmp(token, "<") == 0 || strcmp(token, ">") == 0 ||
         strcmp(token, "|") == 0) {
+
+    } else if (ptr != NULL) { // Case where there are spaces
+
+    } else { // Case where there aren't any special symbols
+      cmd->args[argLen++] = token;
     }
 
-    char *ptr = strpbrk(token, "><|");
-
-    cmd->args[argLen] = token;
-    argLen++;
     token = strtok(NULL, " ");
   }
 
   // Piping and redirection; Should move to parsing
-  for (int i = 1; i < argLen; i++) {
-    char *ptr = strpbrk(cmd->args[i], "><|");
 
-    if (ptr != NULL)
+  /*
+  char *ptr = strpbrk(cmd->args[i], "><|");
 
-      switch (*ptr) {
-      case '<':
+  if (ptr != NULL)
 
-        break;
+    switch (*ptr) {
+    case '<':
 
-      case '>':
+      break;
 
-        break;
+    case '>':
 
-      case '|':
+      break;
 
-        break;
-      }
-  }
+    case '|':
 
+      break;
+    }
+  */
+
+  // Needs to end in NULL to pass into execvp
   cmd->args[argLen] = NULL;
   return argLen;
 }
@@ -90,37 +95,35 @@ int main(void) {
   while (1) {
     int retval;
 
-    /* Print prompt */
+    // Print prompt
     printf("The One Piece is REAL!$ ");
     fflush(stdout);
     getCmd(buffer);
 
-    /* Builtin command */
+    // Builtin command
     if (!strcmp(buffer, "exit")) {
       fprintf(stderr, "Bye...\n");
       break;
     }
 
-    // Copy cmd because strtok replaces the string's pointers with NULL when
-    // parsing
-    char temp[CMDLINE_MAX];
-    strcpy(temp, buffer);
-
-    int argLen = parseArgs(&cmd, temp);
+    // We copy buffer because strtok replaces delimiters with NULL chars
+    char bufferCopy[CMDLINE_MAX];
+    strcpy(bufferCopy, buffer);
+    int argLen = parseArgs(&cmd, bufferCopy);
 
     if (argLen > ARG_MAX)
       perror("Error: too many process arguments");
 
-    if (!fork()) { /* Fork off child process */
+    if (!fork()) { // Fork off child process
 
       // execvp automatically locates to $PATH
 
-      execvp(cmd.args[0], cmd.args); /* Execute command */
-      perror("execv");               /* Coming back here is an error */
+      execvp(cmd.args[0], cmd.args); // Execute command
+      perror("execv");               // Coming back here is an error
       exit(1);
     } else {
-      /* Parent */
-      waitpid(-1, &retval, 0); /* Wait for child to exit */
+      // Parent
+      waitpid(-1, &retval, 0); // Wait for child to exit
     }
 
     fprintf(stdout, "Return status value for '%s': %d\n", buffer, retval);
