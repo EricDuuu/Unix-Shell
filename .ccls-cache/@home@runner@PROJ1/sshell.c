@@ -22,8 +22,7 @@ struct command {
 // strtok to parse through each separated arguments, returns argLen for further
 // use
 int parseArgs(struct command *cmd, char *buffer) {
-  struct command *head = cmd;
-  struct command *current = NULL;
+  struct command *current = cmd;
 
   int argLen = 0;
 
@@ -31,24 +30,28 @@ int parseArgs(struct command *cmd, char *buffer) {
   while (token != NULL) {
 
     char *ptr = strpbrk(token, "><|");
-    char *test = cmd->input;
+    char *test = current->input;
     // Case where the symbol is spaced between commands
     if (strcmp(token, "<") == 0 || strcmp(token, ">") == 0 ||
         strcmp(token, "|") == 0) {
 
       switch (*token) {
+      // TODO: Redirection, < is only allowed in first command pipeline, > is
+      // only allowed at last command of pipeline
       case '<':
         token = strtok(NULL, " ");
-        cmd->input = strdup(token);
+        current->input = strdup(token);
         break;
 
       case '>':
         token = strtok(NULL, " ");
-        cmd->output = strdup(token);
+        current->output = strdup(token);
         break;
 
       case '|':
-
+        // Next iteration begins at the command after the pipeline
+        current->next = (struct command *)malloc(sizeof(struct command));
+        current = current->next;
         break;
       }
 
@@ -57,7 +60,7 @@ int parseArgs(struct command *cmd, char *buffer) {
     } else if (ptr != NULL) { // Case where there are spaces
       argLen++;
     } else { // Case where there aren't any special symbols
-      cmd->args[argLen++] = token;
+      current->args[argLen++] = token;
     }
 
     token = strtok(NULL, " ");
@@ -112,6 +115,7 @@ static void getCmd(char *buffer) {
 int main(void) {
   char buffer[CMDLINE_MAX];
   struct command cmd;
+  cmd.next = NULL;
 
   while (1) {
     int retval;
