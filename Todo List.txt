@@ -1,5 +1,7 @@
+Priority: get it working with no error management -> errors -> commenting -> readme.md document
+
 Modify function parseArgs to accept a pointer to struct:
-- change all occurences of char* args to arguments struct
+X- change all occurences of char* args to arguments struct
 
 - Redirection:
 	-- case 1: spaces between the cmd string "echo hello > output.txt"
@@ -22,3 +24,15 @@ Modify function parseArgs to accept a pointer to struct:
 cd, pwd, and file stack:
 	-- TBA
 
+
+
+Parsing Errors:
+- "Error: too many process arguments"
+- "Error: missing command"
+- "Error: no output file"
+- "Error: cannot open output file"
+- "Error: mislocated output redirection"
+
+Launching errors:
+- "Error: cannot cd into directory"
+- "Error: command not found"

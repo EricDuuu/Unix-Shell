@@ -10,31 +10,52 @@
 #define ARGCHAR_MAX 32
 #define ARG_MAX 16
 
-// Implemented with pipelining and redirection in mind
+// Implemented with pipelining and redirection in mind, Linked List
 // all command info is stored here.
 struct command {
   char *args[ARG_MAX];
-  char *input[ARGCHAR_MAX];
-  char *output[ARGCHAR_MAX];
+  char *input;
+  char *output;
   struct command *next;
 };
 
 // strtok to parse through each separated arguments, returns argLen for further
 // use
 int parseArgs(struct command *cmd, char *buffer) {
+  struct command *head = cmd;
+  struct command *current = NULL;
+
   int argLen = 0;
 
   char *token = strtok(buffer, " ");
   while (token != NULL) {
 
     char *ptr = strpbrk(token, "><|");
-    
+    char *test = cmd->input;
     // Case where the symbol is spaced between commands
     if (strcmp(token, "<") == 0 || strcmp(token, ">") == 0 ||
         strcmp(token, "|") == 0) {
 
-    } else if (ptr != NULL) { // Case where there are spaces
+      switch (*token) {
+      case '<':
+        token = strtok(NULL, " ");
+        cmd->input = strdup(token);
+        break;
 
+      case '>':
+        token = strtok(NULL, " ");
+        cmd->output = strdup(token);
+        break;
+
+      case '|':
+
+        break;
+      }
+
+      argLen++;
+
+    } else if (ptr != NULL) { // Case where there are spaces
+      argLen++;
     } else { // Case where there aren't any special symbols
       cmd->args[argLen++] = token;
     }
@@ -117,7 +138,6 @@ int main(void) {
     if (!fork()) { // Fork off child process
 
       // execvp automatically locates to $PATH
-
       execvp(cmd.args[0], cmd.args); // Execute command
       perror("execv");               // Coming back here is an error
       exit(1);
