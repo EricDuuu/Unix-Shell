@@ -172,23 +172,26 @@ static void execute(struct command *cmd, int *retval) {
   struct command *current = cmd;
 
   while (!current) {
-    /* char wdir[ARGCHAR_MAX];
+    char wdir[ARGCHAR_MAX];
 
     // Performs checks for cd or pwd
-    if(strcmp(current cmd, "cd")){ //current cmd is cd
-      chdir(destination);
-    } else if(strcmp(current cmd, "pwd")){ //current cmd is pwd
-      printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
-    } else if(fork below)
+    if (strcmp(current->args[0], "cd")){ //current cmd is cd
+      chdir(current->args[1]);
 
-    */
-    
-    if (!fork()) { // Fork off child process
+      if (chdir(current->args[1]) != 0){
+        perror("naur");
+      }
+    } 
+    else if (strcmp(current->args[0], "pwd")){ //current cmd is pwd
+      printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
+    } 
+    else if (!fork()) { // Fork off child process
       // execvp automatically locates to $PATH
       execvp(current->args[0], current->args); // Execute command
       perror("execv");                         // Coming back here is an error
       exit(1);
-    } else {
+    } 
+    else {
       // Parent
       waitpid(-1, retval, 0); // Wait for child to exit
     }
