@@ -19,6 +19,10 @@ struct command {
   struct command *next;
 };
 
+int err(char *buffer) { 
+  
+  }
+
 // RETURN;  -1: error, errors are printed in the error function
 // strtok to parse through each separated arguments, returns argLen for further
 // use
@@ -73,22 +77,22 @@ int parseArgs(struct command *cmd, char *buffer) {
 
       switch (*ptr) {
       case '<':
-        
+
         if (*(ptr + 1) == '\0') { // Case: command< input
-          
           int pos = strcspn(token, "<");
-          current->args[argLen++] = strndup(token,pos);
+          current->args[argLen++] = strndup(token, pos);
           token = strtok(NULL, " ");
           current->input = strdup(token);
-          
+
         } else {
           // Case: command <input
           current->input = strdup(ptr + 1);
-          if (*ptr != *token) {//Case: command<input
+          if (*ptr != *token) { // Case: command<input
             int pos = strcspn(token, "<");
-            current->args[argLen++] = strndup(token,pos);
+            current->args[argLen++] = strndup(token, pos);
           }
         }
+
         totalLen++;
         argLen++;
         break;
@@ -97,16 +101,16 @@ int parseArgs(struct command *cmd, char *buffer) {
 
         if (*(ptr + 1) == '\0') { // Case: command> output
           int pos = strcspn(token, ">");
-          current->args[argLen++] = strndup(token,pos);
+          current->args[argLen++] = strndup(token, pos);
           token = strtok(NULL, " ");
           current->output = strdup(token);
         } else {
           // Case: command >output
           current->output = strdup(ptr + 1);
-          
-          if (*ptr != *token) { //Case: command>output
+
+          if (*ptr != *token) { // Case: command>output
             int pos = strcspn(token, ">");
-            current->args[argLen++] = strndup(token,pos);
+            current->args[argLen++] = strndup(token, pos);
           }
         }
         totalLen++;
@@ -115,22 +119,20 @@ int parseArgs(struct command *cmd, char *buffer) {
 
       case '|':
 
-        if(*(ptr + 1) == '\0' || *ptr != *token){
+        if (*(ptr + 1) == '\0' || *ptr != *token) {
           int pos = strcspn(token, "|");
-          current->args[argLen++] = strndup(token,pos);
+          current->args[argLen++] = strndup(token, pos);
         }
-        
+
         current->args[argLen] = NULL;
         current->next = (struct command *)malloc(sizeof(struct command));
         current = current->next;
         argLen = 0;
-        
+
         if (*(ptr + 1) != '\0') // Case: command |command, command|command
           current->args[argLen++] = ptr + 1;
-          
         break;
       }
-
       totalLen++;
       argLen++;
 
@@ -143,7 +145,7 @@ int parseArgs(struct command *cmd, char *buffer) {
 
   // Last command in pipeline or when there are no pipelines
   current->args[argLen] = NULL;
-  return argLen;
+  return totalLen;
 }
 
 // Grab the command from stdin and sanitize for execution given by skeleton code
@@ -163,6 +165,35 @@ static void getCmd(char *buffer) {
   nl = strchr(buffer, '\n');
   if (nl)
     *nl = '\0';
+}
+
+static void execute(struct command *cmd, int *retval) {
+  int pid;
+  struct command *current = cmd;
+
+  while (!current) {
+    /* char wdir[ARGCHAR_MAX];
+
+    // Performs checks for cd or pwd
+    if(strcmp(current cmd, "cd")){ //current cmd is cd
+      chdir(destination);
+    } else if(strcmp(current cmd, "pwd")){ //current cmd is pwd
+      printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
+    } else if(fork below)
+
+    */
+    
+    if (!fork()) { // Fork off child process
+      // execvp automatically locates to $PATH
+      execvp(current->args[0], current->args); // Execute command
+      perror("execv");                         // Coming back here is an error
+      exit(1);
+    } else {
+      // Parent
+      waitpid(-1, retval, 0); // Wait for child to exit
+    }
+    current = current->next;
+  }
 }
 
 int main(void) {
@@ -187,21 +218,13 @@ int main(void) {
     // We copy buffer because strtok replaces delimiters with NULL chars
     char bufferCopy[CMDLINE_MAX];
     strcpy(bufferCopy, buffer);
+
     int argLen = parseArgs(&cmd, bufferCopy);
 
     if (argLen > ARG_MAX)
       perror("Error: too many process arguments");
 
-    if (!fork()) { // Fork off child process
-
-      // execvp automatically locates to $PATH
-      execvp(cmd.args[0], cmd.args); // Execute command
-      perror("execv");               // Coming back here is an error
-      exit(1);
-    } else {
-      // Parent
-      waitpid(-1, &retval, 0); // Wait for child to exit
-    }
+    execute(&cmd, &retval);
 
     fprintf(stdout, "Return status value for '%s': %d\n", buffer, retval);
   }

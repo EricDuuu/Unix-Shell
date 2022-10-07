@@ -5,7 +5,7 @@ Priority: get it working with no error management -> errors -> commenting ->
 Modify function parseArgs to accept a pointer to struct:
 X- change all occurences of char* args to arguments struct
 
-- Redirection:
+X- Redirection:
 	-- case 1: spaces between the cmd string "echo hello > output.txt"
 	-- case 2: no spaces between the cmd string "echo hello>output.txt"
 	-- case 3?: spaces between only 1 cmd "echo hello> output.txt"
