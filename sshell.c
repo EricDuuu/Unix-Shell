@@ -19,9 +19,25 @@ struct command {
   struct command *next;
 };
 
-int parseRedirect(char **ptr, char **token, struct command *current,
+int parseRedirect(char **ptr, char **token, struct command **current,
                   int *totalLen, int *argLen, char *symbol) {
-  return 0;
+
+  if (*(*(ptr) + 1) == '\0') {
+    if (strcmp(*token, symbol) != 0) { // Case: command< input
+      int pos = strcspn(*token, symbol);
+      (*current)->args[*argLen++] = strndup(*token, pos);
+    }
+    *token = strtok(NULL, " "); // Case: command < input
+    (*current)->input = strdup(*token);
+  } else {
+    // Case: command <input
+    (*current)->input = strdup(*(ptr) + 1);
+
+    if (**ptr != **token) { // Case: command<input
+      int pos = strcspn(*token, symbol);
+      (*current)->args[*argLen++] = strndup(*token, pos);
+    }
+  }
 }
 
 // RETURN;  -1: error, errors are printed in the error function
@@ -45,46 +61,13 @@ int parseArgs(struct command *cmd, char *buffer) {
 
       switch (*ptr) {
       case '<':
-
-        if (*(ptr + 1) == '\0') {
-          if (strcmp(token, "<") != 0) { // Case: command< input
-            int pos = strcspn(token, "<");
-            current->args[argLen++] = strndup(token, pos);
-          }
-          token = strtok(NULL, " "); // Case: command < input
-          current->input = strdup(token);
-
-        } else {
-          // Case: command <input
-          current->input = strdup(ptr + 1);
-          if (*ptr != *token) { // Case: command<input
-            int pos = strcspn(token, "<");
-            current->args[argLen++] = strndup(token, pos);
-          }
-        }
+        parseRedirect(&ptr, &token, &current, &totalLen, &argLen, "<");
         totalLen++;
         argLen++;
         break;
 
       case '>':
-
-        if (*(ptr + 1) == '\0') { // Case: command > output
-
-          if (strcmp(token, "<") != 0) { // Case: command> output
-            int pos = strcspn(token, ">");
-            current->args[argLen++] = strndup(token, pos);
-          }
-          token = strtok(NULL, " ");
-          current->output = strdup(token);
-        } else {
-          // Case: command >output
-          current->output = strdup(ptr + 1);
-
-          if (*ptr != *token) { // Case: command>output
-            int pos = strcspn(token, ">");
-            current->args[argLen++] = strndup(token, pos);
-          }
-        }
+        parseRedirect(&ptr, &token, &current, &totalLen, &argLen, ">");
         totalLen++;
         argLen++;
         break;
@@ -112,7 +95,6 @@ int parseArgs(struct command *cmd, char *buffer) {
     }
     token = strtok(NULL, " ");
   }
-
   // Last command in pipeline or when there are no pipelines
   current->args[argLen] = NULL;
   return totalLen;
