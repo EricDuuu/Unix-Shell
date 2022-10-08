@@ -19,21 +19,30 @@ struct command {
   struct command *next;
 };
 
+// Uses string manipulation to separate the command and meta char and inserts
+// data into command struct. Notable string functions: strcmp, strcspn, strndup
 int parseRedirect(char **ptr, char **token, struct command **current,
                   int *totalLen, int *argLen, char *symbol) {
 
+  // Case: command < input and command< input
   if (*(*(ptr) + 1) == '\0') {
-    if (strcmp(*token, symbol) != 0) { // Case: command< input
+
+    // Case: command< input requires parsing of string prior to meta char
+    if (strcmp(*token, symbol) != 0) {
       int pos = strcspn(*token, symbol);
       (*current)->args[*argLen++] = strndup(*token, pos);
     }
-    *token = strtok(NULL, " "); // Case: command < input
+    // Grab the isolated input
+    *token = strtok(NULL, " ");
     (*current)->input = strdup(*token);
-  } else {
-    // Case: command <input
+
+  } else { // Case: command <input and command<input
+
+    // grab's input from after the meta char
     (*current)->input = strdup(*(ptr) + 1);
 
-    if (**ptr != **token) { // Case: command<input
+    // Case: command<input requires parsing of string prior to meta char
+    if (**ptr != **token) {
       int pos = strcspn(*token, symbol);
       (*current)->args[*argLen++] = strndup(*token, pos);
     }
