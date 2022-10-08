@@ -19,9 +19,7 @@ struct command {
   struct command *next;
 };
 
-int err(char *buffer) { 
-  
-  }
+int err(char *buffer) {}
 
 // RETURN;  -1: error, errors are printed in the error function
 // strtok to parse through each separated arguments, returns argLen for further
@@ -38,50 +36,19 @@ int parseArgs(struct command *cmd, char *buffer) {
 
     char *ptr = strpbrk(token, "><|");
     char *test = current->input;
-
-    // Case: command<input where the symbol is spaced between commands
-    if (strcmp(token, "<") == 0 || strcmp(token, ">") == 0 ||
-        strcmp(token, "|") == 0) {
-
-      switch (*token) {
-      // TODO: Redirection, < is only allowed in first command pipeline, > is
-      // only allowed at last command of pipeline
-      case '<':
-        token = strtok(NULL, " ");
-        current->input = strdup(token);
-        totalLen++;
-        argLen++;
-        break;
-
-      case '>':
-        token = strtok(NULL, " ");
-        current->output = strdup(token);
-        argLen++;
-        totalLen++;
-        break;
-
-      case '|':
-        // Next iteration begins at the command after the pipeline
-        current->args[argLen] = NULL;
-        current->next = (struct command *)malloc(sizeof(struct command));
-        current = current->next;
-
-        // Remember to reset argLen since it's a new command
-        argLen = 0;
-        break;
-      }
-
-    } else if (ptr != NULL) {
+    if (ptr != NULL) {
       // Cases: command< input, command <input, command<input
       // where there are no spaces in between
 
       switch (*ptr) {
       case '<':
 
-        if (*(ptr + 1) == '\0') { // Case: command< input
-          int pos = strcspn(token, "<");
-          current->args[argLen++] = strndup(token, pos);
-          token = strtok(NULL, " ");
+        if (*(ptr + 1) == '\0') {
+          if (strcmp(token, "<") != 0) { // Case: command< input
+            int pos = strcspn(token, "<");
+            current->args[argLen++] = strndup(token, pos);
+          }
+          token = strtok(NULL, " "); // Case: command < input
           current->input = strdup(token);
 
         } else {
@@ -99,9 +66,12 @@ int parseArgs(struct command *cmd, char *buffer) {
 
       case '>':
 
-        if (*(ptr + 1) == '\0') { // Case: command> output
-          int pos = strcspn(token, ">");
-          current->args[argLen++] = strndup(token, pos);
+        if (*(ptr + 1) == '\0') { // Case: command > output
+
+          if (strcmp(token, "<") != 0) { // Case: command> output
+            int pos = strcspn(token, ">");
+            current->args[argLen++] = strndup(token, pos);
+          }
           token = strtok(NULL, " ");
           current->output = strdup(token);
         } else {
@@ -118,12 +88,12 @@ int parseArgs(struct command *cmd, char *buffer) {
         break;
 
       case '|':
-
-        if (*(ptr + 1) == '\0' || *ptr != *token) {
+        // Cases: cmd| cmd cmd |cmd
+        if ((*(ptr + 1) == '\0' || *ptr != *token) && strcmp(token, "|") == 0) {
           int pos = strcspn(token, "|");
           current->args[argLen++] = strndup(token, pos);
         }
-
+        // Cases: cmd | cmd
         current->args[argLen] = NULL;
         current->next = (struct command *)malloc(sizeof(struct command));
         current = current->next;
@@ -133,8 +103,6 @@ int parseArgs(struct command *cmd, char *buffer) {
           current->args[argLen++] = ptr + 1;
         break;
       }
-      totalLen++;
-      argLen++;
 
     } else { // Case where there aren't any special symbols
       current->args[argLen++] = token;
@@ -175,23 +143,20 @@ static void execute(struct command *cmd, int *retval) {
     char wdir[ARGCHAR_MAX];
 
     // Performs checks for cd or pwd
-    if (strcmp(current->args[0], "cd")){ //current cmd is cd
+    if (strcmp(current->args[0], "cd")) { // current cmd is cd
       chdir(current->args[1]);
 
-      if (chdir(current->args[1]) != 0){
+      if (chdir(current->args[1]) != 0) {
         perror("naur");
       }
-    } 
-    else if (strcmp(current->args[0], "pwd")){ //current cmd is pwd
+    } else if (strcmp(current->args[0], "pwd")) { // current cmd is pwd
       printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
-    } 
-    else if (!fork()) { // Fork off child process
+    } else if (!fork()) { // Fork off child process
       // execvp automatically locates to $PATH
       execvp(current->args[0], current->args); // Execute command
       perror("execv");                         // Coming back here is an error
       exit(1);
-    } 
-    else {
+    } else {
       // Parent
       waitpid(-1, retval, 0); // Wait for child to exit
     }
