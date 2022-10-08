@@ -19,11 +19,14 @@ struct command {
   struct command *next;
 };
 
-int err(char *buffer) {}
+int parseRedirect(char **ptr, char **token, struct command *current,
+                  int *totalLen, int *argLen, char *symbol) {
+  return 0;
+}
 
 // RETURN;  -1: error, errors are printed in the error function
-// strtok to parse through each separated arguments, returns argLen for further
-// use
+// strtok to parse through each separated arguments, returns argLen for
+// further use
 int parseArgs(struct command *cmd, char *buffer) {
   struct command *current = cmd;
 
@@ -59,7 +62,6 @@ int parseArgs(struct command *cmd, char *buffer) {
             current->args[argLen++] = strndup(token, pos);
           }
         }
-
         totalLen++;
         argLen++;
         break;
