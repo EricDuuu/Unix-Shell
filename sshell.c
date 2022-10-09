@@ -19,10 +19,14 @@ struct command {
   struct command *next;
 };
 
+// Check Parsing errors before heading back to main function
+// RETURNS:
+int parseErrors(char *buffer) { return -1; }
+
 // Uses string manipulation to separate the command and meta char and inserts
 // data into command struct. Notable string functions: strcmp, strcspn, strndup
-int parseRedirect(char **ptr, char **token, struct command **current,
-                  int *totalLen, int *argLen, char *symbol) {
+void parseRedirect(char **ptr, char **token, struct command **current,
+                   int *totalLen, int *argLen, char *symbol) {
 
   // Case: command < input and command< input
   if (*(*(ptr) + 1) == '\0') {
@@ -49,7 +53,16 @@ int parseRedirect(char **ptr, char **token, struct command **current,
   }
 }
 
-// RETURN;  -1: error, errors are printed in the error function
+// RETURN -1 if length of args go past max length
+int errorArgLen(const int *totalLen) {
+  if (*totalLen > ARG_MAX - 1) {
+    fprintf(stderr, "Error: too many process arguments\n");
+    return -1;
+  }
+  return 0;
+}
+
+// RETURN;  -1: error, errors are printed in respective error function
 // strtok to parse through each separated arguments, returns argLen for
 // further use
 int parseArgs(struct command *cmd, char *buffer) {
@@ -62,12 +75,13 @@ int parseArgs(struct command *cmd, char *buffer) {
   char *token = strtok(buffer, " ");
   while (token != NULL) {
 
+    if (errorArgLen(&totalLen) == -1)
+      return -1;
+
     char *ptr = strpbrk(token, "><|");
     char *test = current->input;
-    if (ptr != NULL) {
-      // Cases: command< input, command <input, command<input
-      // where there are no spaces in between
 
+    if (ptr != NULL) {
       switch (*ptr) {
       case '<':
         parseRedirect(&ptr, &token, &current, &totalLen, &argLen, "<");
@@ -159,10 +173,10 @@ static void execute(struct command *cmd, int *retval) {
 
 int main(void) {
   char buffer[CMDLINE_MAX];
-  struct command cmd;
-  cmd.next = NULL;
 
   while (1) {
+    struct command cmd;
+    cmd.next = NULL;
     int retval;
 
     // Print prompt
@@ -180,12 +194,21 @@ int main(void) {
     char bufferCopy[CMDLINE_MAX];
     strcpy(bufferCopy, buffer);
 
-    int argLen = parseArgs(&cmd, bufferCopy);
+    if (parseArgs(&cmd, bufferCopy) == -1) {
+      continue;
+    }
 
-    if (argLen > ARG_MAX)
-      perror("Error: too many process arguments");
+    // execute(&cmd, &retval);
 
-    execute(&cmd, &retval);
+    if (!fork()) { // Fork off child process
+      // execvp automatically locates to $PATH
+      execvp(cmd.args[0], cmd.args); // Execute command
+      perror("execv");               // Coming back here is an error
+      exit(1);
+    } else {
+      // Parent
+      waitpid(-1, &retval, 0); // Wait for child to exit
+    }
 
     fprintf(stdout, "Return status value for '%s': %d\n", buffer, retval);
   }
