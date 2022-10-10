@@ -297,6 +297,7 @@ static void redirect(struct command *current) {
     int fd = open(current->input, O_RDONLY);
     dup2(fd, STDIN_FILENO);
     close(fd);
+    
   } else if (current->output != NULL) {
     int fd = open(current->output, O_WRONLY | O_TRUNC);
     dup2(fd, STDOUT_FILENO);
@@ -308,35 +309,56 @@ static void redirect(struct command *current) {
 // Assume that input is sanitized for parsing
 // RETURN -1 indicates a launching error
 int execute(struct command *cmd, int *retval) {
-  int pid;
   struct command *current = cmd;
 
   while (current != NULL) {
     char wdir[ARGCHAR_MAX];
+    int pid;
+    int wpipe[2];
 
-    // Performs checks for cd or pwd
-    if (!strcmp(current->args[0], "cd")) { // current cmd is cd
+    // Creates pipe
+    if ((pipe(wpipe)) < 0){
+      fprintf(stderr, "pipe was fucked bro\n");
+      exit(1);
+    }
 
-      if (chdir(current->args[1]) == -1) {
-        perror("naur");
+    if (!fork()) { // Fork off child process
+
+      // Child
+      redirect(current);
+      
+      // Performs checks for cd or pwd
+      if (strcmp(current->args[0], "cd") == 0) { // Current cmd is cd
+        if (chdir(current->args[1]) == -1) {
+          fprintf(stderr, "Error: cannot cd into directory\n");
+          *retval = 1;
+          return -1;
+        }
+        
+      } else if (strcmp(current->args[0], "pwd") == 0) { // Current cmd is pwd
+        printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
+        
+      } else {
+        execvp(current->args[0], current->args); // Execute command
+        perror("execv");                         // Coming back here is an error
+        exit(1);
       }
 
-    } else if (!strcmp(current->args[0], "pwd")) { // current cmd is pwd
-      printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
-    }
-    if (!fork()) { // Fork off child process
-      redirect(current);
-      // execvp automatically locates to $PATH
-      execvp(current->args[0], current->args); // Execute command
-      perror("execv");                         // Coming back here is an error
-      exit(1);
     } else {
       // Parent
+      //close(wpipe[0]);  // Close other end of pipe
+
+      // Parent process writes data to the pipe
+      //passage = fdopen(wpipe[1], "w");
+      //fprintf(passage, current->input);
+      //fclose(passage);
+      
       waitpid(-1, retval, 0); // Wait for child to exit
     }
 
     current = current->next;
   }
+  return 0;
 }
 
 // NOTE: used for testing purposes (will delete in final product)
@@ -393,10 +415,10 @@ int main(void) {
 
     // printCMD(&cmd);
 
-    // execute(&cmd, &retval);
+    execute(&cmd, &retval);
 
-    int pid = fork();
-    if (!pid) { // Fork off child process
+    /*
+    if (!fork()) { // Fork off child process
       redirect(&cmd);
       // execvp automatically locates to $PATH
       execvp(cmd.args[0], cmd.args); // Execute command
@@ -406,6 +428,7 @@ int main(void) {
       // Parent
       waitpid(-1, &retval, 0); // Wait for child to exit
     }
+    */
 
     fprintf(stdout, "+ completed '%s' [%d]\n", buffer, retval);
     freeList(&cmd);

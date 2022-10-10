@@ -308,28 +308,29 @@ static void redirect(struct command *current) {
 // Assume that input is sanitized for parsing
 // RETURN -1 indicates a launching error
 int execute(struct command *cmd, int *retval) {
-  int pid;
   struct command *current = cmd;
 
   while (current != NULL) {
     char wdir[ARGCHAR_MAX];
+    int pid;
 
-    // Performs checks for cd or pwd
-    if (!strcmp(current->args[0], "cd")) { // current cmd is cd
-
-      if (chdir(current->args[1]) == -1) {
-        perror("naur");
-      }
-
-    } else if (!strcmp(current->args[0], "pwd")) { // current cmd is pwd
-      printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
-    }
     if (!fork()) { // Fork off child process
       redirect(current);
-      // execvp automatically locates to $PATH
-      execvp(current->args[0], current->args); // Execute command
-      perror("execv");                         // Coming back here is an error
-      exit(1);
+
+      // Performs checks for cd or pwd
+      if (strcmp(current->args[0], "cd") == 0) { // current cmd is cd
+        if (chdir(current->args[1]) == -1) {
+          fprintf(stderr, "Error: cannot cd into directory\n");
+          *retval = 1;
+          return -1;
+        }
+      } else if (strcmp(current->args[0], "pwd") == 0) { // current cmd is pwd
+        printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
+      } else {
+        execvp(current->args[0], current->args); // Execute command
+        perror("execv");                         // Coming back here is an error
+        exit(1);
+      }
     } else {
       // Parent
       waitpid(-1, retval, 0); // Wait for child to exit
@@ -337,6 +338,7 @@ int execute(struct command *cmd, int *retval) {
 
     current = current->next;
   }
+  return 0;
 }
 
 // NOTE: used for testing purposes (will delete in final product)
@@ -393,12 +395,10 @@ int main(void) {
 
     // printCMD(&cmd);
 
-    // execute(&cmd, &retval);
+    execute(&cmd, &retval);
 
-    int pid = fork();
-    printf("\n\nout %d\n\n", pid);
-    if (!pid) { // Fork off child process
-      printf("\n\nin %d\n", pid);
+    /*
+    if (!fork()) { // Fork off child process
       redirect(&cmd);
       // execvp automatically locates to $PATH
       execvp(cmd.args[0], cmd.args); // Execute command
@@ -408,6 +408,7 @@ int main(void) {
       // Parent
       waitpid(-1, &retval, 0); // Wait for child to exit
     }
+    */
 
     fprintf(stdout, "+ completed '%s' [%d]\n", buffer, retval);
     freeList(&cmd);
