@@ -110,7 +110,10 @@ int parsePipeline(char **ptr, char **token, struct command **current,
   (*current)->args[(*argLen)] = NULL;
   (*current)->next = (struct command *)malloc(sizeof(struct command));
   (*current) = (*current)->next;
+  // Initialize Vars
   (*current)->next = NULL;
+  (*current)->input = NULL;
+  (*current)->output = NULL;
   (*argLen) = 0;
 
   if (*((*ptr) + 1) != '\0') // Case: command |command, command|command
@@ -289,7 +292,7 @@ void freeList(struct command *head) {
     next = next->next;
     if (nextTemp->input != NULL)
       free(nextTemp->input);
-    else if (nextTemp->output != NULL)
+    if (nextTemp->output != NULL)
       free(nextTemp->output);
     free(nextTemp);
   }
@@ -301,6 +304,8 @@ int main(void) {
   while (1) {
     struct command cmd;
     cmd.next = NULL;
+    cmd.input = NULL;
+    cmd.output = NULL;
     int retval;
 
     // Print prompt
@@ -324,17 +329,7 @@ int main(void) {
       continue;
     }
 
-    // execute(&cmd, &retval);
-
-    if (!fork()) { // Fork off child process
-      // execvp automatically locates to $PATH
-      execvp(cmd.args[0], cmd.args); // Execute command
-      perror("execv");               // Coming back here is an error
-      exit(1);
-    } else {
-      // Parent
-      waitpid(-1, &retval, 0); // Wait for child to exit
-    }
+    execute(&cmd, &retval);
 
     fprintf(stdout, "Return status value for '%s': %d\n", buffer, retval);
     freeList(&cmd);
