@@ -139,8 +139,13 @@ int parsePipeline(char **ptr, char **token, struct command **current,
 int mislocated(const struct command *head, const struct command *tail) {
 
   // Error: cmd > output | cmd, cmd| cmd < input
-  if (head->next != NULL && head->output != NULL && tail->input != NULL) {
+  if (head->next != NULL && head->output != NULL) {
     fprintf(stderr, "Error: mislocated output redirection\n");
+    return -1;
+  }
+
+  if (tail->input != NULL && tail != head) {
+    fprintf(stderr, "Error: mislocated input redirection\n");
     return -1;
   }
 
@@ -149,8 +154,12 @@ int mislocated(const struct command *head, const struct command *tail) {
   while (head != NULL) {
     if (head == tail)
       break;
-    if (head->input != NULL || head->output != NULL) {
+
+    if (head->output != NULL) {
       fprintf(stderr, "Error: mislocated output redirection\n");
+      return -1;
+    } else if (head->input != NULL) {
+      fprintf(stderr, "Error: mislocated input redirection\n");
       return -1;
     }
     head = head->next;
