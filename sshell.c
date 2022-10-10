@@ -19,12 +19,14 @@ struct command {
   struct command *next;
 };
 
-// Check Parsing errors before heading back to main function
-// RETURNS:
-int parseErrors(char *buffer) { return -1; }
+// Helper function to check if a char is any of these symbols
+int isMeta(char symbol) {
+  return symbol == '<' || symbol == '>' || symbol == '|';
+}
 
 // Uses string manipulation to separate the command and meta char and inserts
 // data into command struct. Notable string functions: strcmp, strcspn, strndup
+// RETURN -1 for parsing errors
 int parseRedirect(char **ptr, char **token, struct command **current,
                   int *totalLen, int *argLen, char *symbol) {
 
@@ -35,10 +37,13 @@ int parseRedirect(char **ptr, char **token, struct command **current,
     if (strcmp(*token, symbol) != 0) {
       int pos = strcspn(*token, symbol);
       (*current)->args[(*argLen)] = strndup(*token, pos);
+      (*argLen)++;
+      (*totalLen)++;
     }
+
     // Grab the isolated input
     *token = strtok(NULL, " ");
-    if (*token == NULL) {
+    if (*token == NULL || isMeta(**token)) { // Error: command < |
       switch (*symbol) {
       case '>':
         fprintf(stderr, "Error: no output file\n");
@@ -53,7 +58,7 @@ int parseRedirect(char **ptr, char **token, struct command **current,
 
   } else { // Case: command <input and command<input
 
-    if (*(*(ptr) + 1) == '\0') {
+    if (*(*(ptr) + 1) == '\0' || isMeta(*(*(ptr) + 1))) { // Error: command <|
       switch (*symbol) {
       case '>':
         fprintf(stderr, "Error: no output file\n");
@@ -71,6 +76,8 @@ int parseRedirect(char **ptr, char **token, struct command **current,
     if (**ptr != **token) {
       int pos = strcspn(*token, symbol);
       (*current)->args[(*argLen)] = strndup(*token, pos);
+      (*argLen)++;
+      (*totalLen)++;
     }
   }
   return 0;
@@ -85,12 +92,51 @@ int errorArgLen(const int *totalLen) {
   return 0;
 }
 
+int parsePipeline(char **ptr, char **token, struct command **current,
+                  int *totalLen, int *argLen) {
+  // Cases: cmd| cmd cmd |cmd
+  if ((*((*ptr) + 1) == '\0' || **ptr != **token) && strcmp(*token, "|") != 0) {
+    int pos = strcspn(*token, "|");
+    (*current)->args[(*argLen)] = strndup(*token, pos);
+    (*argLen)++;
+    (*totalLen)++;
+  }
+  // Cases: cmd | cmd
+  (*current)->args[(*argLen)] = NULL;
+  (*current)->next = (struct command *)malloc(sizeof(struct command));
+  (*current) = (*current)->next;
+  (*argLen) = 0;
+
+  if (*((*ptr) + 1) != '\0') // Case: command |command, command|command
+  {
+    if (isMeta(*((*ptr) + 1))) { // Error: command |<
+      fprintf(stderr, "Error: missing command\n");
+      return -1;
+    }
+    
+    (*current)->args[(*argLen)] = (*ptr) + 1;
+    (*argLen)++;
+    (*totalLen)++;
+  } else {
+    *token = strtok(NULL, " ");
+    if (*token == NULL || isMeta(**token)) { // Error: command | , command | <
+      fprintf(stderr, "Error: missing command\n");
+      return -1;
+    }
+    (*current)->args[(*argLen)] = *token;
+    (*argLen)++;
+    (*totalLen)++;
+  }
+
+  return 0;
+}
+
 // RETURN;  -1: error, errors are printed in respective error function
 // strtok to parse through each separated arguments, returns argLen for
 // further use
 int parseArgs(struct command *cmd, char *buffer) {
   struct command *current = cmd;
-  int redirRetVal = 0;
+  int retVal = 0;
 
   // totalLen for the cases where there is pipelining
   int argLen = 0;
@@ -113,51 +159,22 @@ int parseArgs(struct command *cmd, char *buffer) {
     if (ptr != NULL) {
       switch (*ptr) {
       case '<':
-        redirRetVal =
-            parseRedirect(&ptr, &token, &current, &totalLen, &argLen, "<");
-        if (redirRetVal == -1)
+        retVal = parseRedirect(&ptr, &token, &current, &totalLen, &argLen, "<");
+        if (retVal == -1)
           return -1;
-        argLen++;
-        totalLen++;
         break;
 
       case '>':
-        redirRetVal =
-            parseRedirect(&ptr, &token, &current, &totalLen, &argLen, ">");
-        if (redirRetVal == -1)
+        retVal = parseRedirect(&ptr, &token, &current, &totalLen, &argLen, ">");
+        if (retVal == -1)
           return -1;
-
-        argLen++;
-        totalLen++;
         break;
 
       case '|':
-        // Cases: cmd| cmd cmd |cmd
-        if ((*(ptr + 1) == '\0' || *ptr != *token) && strcmp(token, "|") != 0) {
-          int pos = strcspn(token, "|");
-          current->args[argLen++] = strndup(token, pos);
-          totalLen++;
-        }
-        // Cases: cmd | cmd
-        current->args[argLen] = NULL;
-        current->next = (struct command *)malloc(sizeof(struct command));
-        current = current->next;
-        argLen = 0;
 
-        if (*(ptr + 1) != '\0') // Case: command |command, command|command
-        {
-          current->args[argLen++] = ptr + 1;
-          totalLen++;
-        } else {
-          token = strtok(NULL, " ");
-          if (token == NULL) { // Error: command |
-            fprintf(stderr, "Error: missing command\n");
-            return -1;
-          }
-          current->args[argLen++] = token;
-          totalLen++;
-        }
-
+        retVal = parsePipeline(&ptr, &token, &current, &totalLen, &argLen);
+        if (retVal == -1)
+          return -1;
         break;
       }
 
