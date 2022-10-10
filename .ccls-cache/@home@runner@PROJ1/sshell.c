@@ -292,16 +292,13 @@ void freeList(struct command *head) {
 
 // Function which handles input and output redirection
 static void redirect(struct command *current) {
-  int fd = 0;
 
   if (current->input != NULL) {
-    fd = open(current->input, O_RDONLY);
+    int fd = open(current->input, O_RDONLY);
     dup2(fd, STDIN_FILENO);
     close(fd);
-  }
-
-  if (current->output != NULL) {
-    fd = open(current->output, O_WRONLY | O_TRUNC);
+  } else if (current->output != NULL) {
+    int fd = open(current->output, O_WRONLY | O_TRUNC);
     dup2(fd, STDOUT_FILENO);
     close(fd);
   }
@@ -326,18 +323,18 @@ int execute(struct command *cmd, int *retval) {
 
     } else if (!strcmp(current->args[0], "pwd")) { // current cmd is pwd
       printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
-    } else {
-      if (!fork()) { // Fork off child process
-        redirect(current);
-        // execvp automatically locates to $PATH
-        execvp(current->args[0], current->args); // Execute command
-        perror("execv");                         // Coming back here is an error
-        exit(1);
-      } else {
-        // Parent
-        waitpid(-1, retval, 0); // Wait for child to exit
-      }
     }
+    if (!fork()) { // Fork off child process
+      redirect(current);
+      // execvp automatically locates to $PATH
+      execvp(current->args[0], current->args); // Execute command
+      perror("execv");                         // Coming back here is an error
+      exit(1);
+    } else {
+      // Parent
+      waitpid(-1, retval, 0); // Wait for child to exit
+    }
+
     current = current->next;
   }
 }
@@ -398,7 +395,10 @@ int main(void) {
 
     // execute(&cmd, &retval);
 
-    if (!fork()) { // Fork off child process
+    int pid = fork();
+    printf("\n\nout %d\n\n", pid);
+    if (!pid) { // Fork off child process
+      printf("\n\nin %d\n", pid);
       redirect(&cmd);
       // execvp automatically locates to $PATH
       execvp(cmd.args[0], cmd.args); // Execute command
