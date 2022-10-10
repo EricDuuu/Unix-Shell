@@ -341,7 +341,7 @@ int main(void) {
     int retval;
 
     // Print prompt
-    printf("The One Piece is REAL!$ ");
+    printf("sshell@ucd$ ");
     fflush(stdout);
     getCmd(buffer);
 
@@ -373,7 +373,7 @@ int main(void) {
       waitpid(-1, &retval, 0); // Wait for child to exit
     }
 
-    fprintf(stdout, "Return status value for '%s': %d\n", buffer, retval);
+    fprintf(stdout, "+ completed '%s' [%d]\n", buffer, retval);
     freeList(&cmd);
   }
 
