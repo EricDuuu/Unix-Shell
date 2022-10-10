@@ -276,10 +276,21 @@ static void execute(struct command *cmd, int *retval) {
 // https://stackoverflow.com/questions/6417158/c-how-to-free-nodes-in-the-linked-list
 void freeList(struct command *head) {
   // head is not dynamically allocated
+
+  // strndup and strdup both allocate memory and need to be freed
+  if (head->input != NULL)
+    free(head->input);
+  else if (head->output != NULL)
+    free(head->output);
+
   struct command *next = head->next;
   while (next) {
     struct command *nextTemp = next;
     next = next->next;
+    if (nextTemp->input != NULL)
+      free(nextTemp->input);
+    else if (nextTemp->output != NULL)
+      free(nextTemp->output);
     free(nextTemp);
   }
 }
