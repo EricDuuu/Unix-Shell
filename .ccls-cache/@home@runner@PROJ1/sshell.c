@@ -80,6 +80,7 @@ int parseRedirect(char **ptr, char **token, struct command **current,
       (*totalLen)++;
     }
   }
+
   return 0;
 }
 
@@ -92,6 +93,10 @@ int errorArgLen(const int *totalLen) {
   return 0;
 }
 
+// Modular pipeline parser, pass by reference to modify linked list.
+// New node is allocated and pointer is modified to the last element in linked
+// list.
+// RETURN -1 for parsing errors
 int parsePipeline(char **ptr, char **token, struct command **current,
                   int *totalLen, int *argLen) {
   // Cases: cmd| cmd cmd |cmd
@@ -105,6 +110,7 @@ int parsePipeline(char **ptr, char **token, struct command **current,
   (*current)->args[(*argLen)] = NULL;
   (*current)->next = (struct command *)malloc(sizeof(struct command));
   (*current) = (*current)->next;
+  (*current)->next = NULL;
   (*argLen) = 0;
 
   if (*((*ptr) + 1) != '\0') // Case: command |command, command|command
@@ -113,7 +119,7 @@ int parsePipeline(char **ptr, char **token, struct command **current,
       fprintf(stderr, "Error: missing command\n");
       return -1;
     }
-    
+
     (*current)->args[(*argLen)] = (*ptr) + 1;
     (*argLen)++;
     (*totalLen)++;
@@ -126,6 +132,30 @@ int parsePipeline(char **ptr, char **token, struct command **current,
     (*current)->args[(*argLen)] = *token;
     (*argLen)++;
     (*totalLen)++;
+  }
+
+  return 0;
+}
+
+// Finds mislocated redirects by traversing linked list
+int mislocated(const struct command *head, const struct command *tail) {
+
+  // Error: cmd > output | cmd, cmd| cmd < input
+  if (head->next != NULL && head->output != NULL && tail->input != NULL) {
+    fprintf(stderr, "Error: mislocated output redirection\n");
+    return -1;
+  }
+
+  // Error cmd | cmd > cmd | cmd , cmd | cmd < cmd | cmd
+  head = head->next;
+  while (head != NULL) {
+    if (head == tail)
+      break;
+    if (head->input != NULL || head->output != NULL) {
+      fprintf(stderr, "Error: mislocated output redirection\n");
+      return -1;
+    }
+    head = head->next;
   }
 
   return 0;
@@ -186,6 +216,10 @@ int parseArgs(struct command *cmd, char *buffer) {
   }
   // Last command in pipeline or when there are no pipelines
   current->args[argLen] = NULL;
+
+  if (mislocated(cmd, current) == -1)
+    return -1;
+
   return totalLen;
 }
 
@@ -237,6 +271,19 @@ static void execute(struct command *cmd, int *retval) {
   }
 }
 
+// Code to free up a linked list
+// I forgot how to do so I looked it up:
+// https://stackoverflow.com/questions/6417158/c-how-to-free-nodes-in-the-linked-list
+void freeList(struct command *head) {
+  // head is not dynamically allocated
+  struct command *next = head->next;
+  while (next) {
+    struct command *nextTemp = next;
+    next = next->next;
+    free(nextTemp);
+  }
+}
+
 int main(void) {
   char buffer[CMDLINE_MAX];
 
@@ -260,7 +307,9 @@ int main(void) {
     char bufferCopy[CMDLINE_MAX];
     strcpy(bufferCopy, buffer);
 
+    // Parsing Errors are automatically passed back
     if (parseArgs(&cmd, bufferCopy) == -1) {
+      freeList(&cmd);
       continue;
     }
 
@@ -277,6 +326,7 @@ int main(void) {
     }
 
     fprintf(stdout, "Return status value for '%s': %d\n", buffer, retval);
+    freeList(&cmd);
   }
 
   return EXIT_SUCCESS;
