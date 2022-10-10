@@ -294,6 +294,11 @@ void freeList(struct command *head) {
 static void redirect(struct command *current) {
   int fd = 0;
   if (current->input != NULL) {
+    
+    if (current->output != NULL){  
+      
+    }
+    
   } else if (current->output != NULL) {
   }
 }
@@ -315,14 +320,20 @@ int execute(struct command *cmd, int *retval) {
       if (chdir(current->args[1]) != 0) {
         perror("naur");
       }
-    } else if (strcmp(current->args[0], "pwd")) { // current cmd is pwd
+    } 
+    
+    else if (strcmp(current->args[0], "pwd")) { // current cmd is pwd
       printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
-    } else if (!fork()) { // Fork off child process
+    } 
+    
+    else if (!fork()) { // Fork off child process
       // execvp automatically locates to $PATH
       execvp(current->args[0], current->args); // Execute command
       perror("execv");                         // Coming back here is an error
       exit(1);
-    } else {
+    } 
+    
+    else {
       // Parent
       waitpid(-1, retval, 0); // Wait for child to exit
     }
@@ -344,7 +355,11 @@ int main(void) {
     printf("sshell@ucd$ ");
     fflush(stdout);
     getCmd(buffer);
-
+    
+    char buffy[256] = "md5sum < est.txt >output.txt";
+    parseArgs(&cmd, buffy);
+    printf("%s\n", buffy);
+    
     // Builtin command
     if (!strcmp(buffer, "exit")) {
       fprintf(stderr, "Bye...\n");
