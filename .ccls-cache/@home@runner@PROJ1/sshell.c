@@ -78,6 +78,11 @@ int parseArgs(struct command *cmd, char *buffer) {
     if (errorArgLen(&totalLen) == -1)
       return -1;
 
+    if ((*token == '<' || *token == '>' || *token == '|') && argLen == 0) {
+      fprintf(stderr, "Error: missing command\n");
+      return -1;
+    }
+
     char *ptr = strpbrk(token, "><|");
     char *test = current->input;
 
