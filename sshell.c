@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,7 +54,10 @@ int parseRedirect(char **ptr, char **token, struct command **current,
       }
       return -1;
     }
-    (*current)->input = strdup(*token);
+    if (*symbol == '<')
+      (*current)->input = strdup(*token);
+    else
+      (*current)->output = strdup(*token);
 
   } else { // Case: command <input and command<input
 
@@ -68,8 +72,11 @@ int parseRedirect(char **ptr, char **token, struct command **current,
       }
       return -1;
     }
-    // grabs input from after the meta char
-    (*current)->input = strdup(*(ptr) + 1);
+    // grabs input/output from after the meta char
+    if (*symbol == '<')
+      (*current)->input = strdup(*(ptr) + 1);
+    else
+      (*current)->output = strdup(*(ptr) + 1);
 
     // Case: command<input requires parsing of string prior to meta char
     if (**ptr != **token) {
@@ -168,6 +175,22 @@ int mislocated(const struct command *head, const struct command *tail) {
   return 0;
 }
 
+// Check if input and output files are valid files
+int fileCheck(struct command *head, struct command *tail) {
+  int fd = 0;
+  if (head->input != NULL && open(head->input, O_RDONLY) == -1) {
+    fprintf(stderr, "Error: cannot open input file\n");
+    return -1;
+  }
+
+  if (tail->output != NULL &&
+      open(tail->output, O_WRONLY | O_CREAT, 0644) == -1) {
+    fprintf(stderr, "Error: cannot open output file\n");
+    return -1;
+  }
+  return 0;
+}
+
 // RETURN;  -1: error, errors are printed in respective error function
 // strtok to parse through each separated arguments, returns argLen for
 // further use
@@ -219,6 +242,9 @@ int parseArgs(struct command *cmd, char *buffer) {
   if (mislocated(cmd, current) == -1)
     return -1;
 
+  if (fileCheck(cmd, current) == -1)
+    return -1;
+
   return 0;
 }
 
@@ -265,7 +291,17 @@ void freeList(struct command *head) {
   }
 }
 
-static void execute(struct command *cmd, int *retval) {
+static void redirect(struct command *current) {
+  int fd = 0;
+  if (current->input != NULL) {
+  } else if (current->output != NULL) {
+  }
+}
+
+// Function which handles execution of commands, piplining, and redirection
+// Assume that input is sanitized for parsing
+// RETURN -1 indicates a launching error
+int execute(struct command *cmd, int *retval) {
   int pid;
   struct command *current = cmd;
 
@@ -325,7 +361,17 @@ int main(void) {
       continue;
     }
 
-    execute(&cmd, &retval);
+    // execute(&cmd, &retval);
+
+    if (!fork()) { // Fork off child process
+      // execvp automatically locates to $PATH
+      execvp(cmd.args[0], cmd.args); // Execute command
+      perror("execv");               // Coming back here is an error
+      exit(1);
+    } else {
+      // Parent
+      waitpid(-1, &retval, 0); // Wait for child to exit
+    }
 
     fprintf(stdout, "Return status value for '%s': %d\n", buffer, retval);
     freeList(&cmd);
