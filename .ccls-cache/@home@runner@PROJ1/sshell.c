@@ -74,9 +74,9 @@ int parseRedirect(char **ptr, char **token, struct command **current,
     }
     // grabs input/output from after the meta char
     if (*symbol == '<')
-      (*current)->input = strdup(*(ptr) + 1);
+      (*current)->input = strdup(*ptr + 1);
     else
-      (*current)->output = strdup(*(ptr) + 1);
+      (*current)->output = strdup(*ptr + 1);
 
     // Case: command<input requires parsing of string prior to meta char
     if (**ptr != **token) {
@@ -182,9 +182,8 @@ int fileCheck(struct command *head, struct command *tail) {
     fprintf(stderr, "Error: cannot open input file\n");
     return -1;
   }
-
-  if (tail->output != NULL &&
-      open(tail->output, O_WRONLY | O_CREAT, 0644) == -1) {
+  fd = open(tail->output, O_WRONLY | O_CREAT, 0644);
+  if (tail->output != NULL && fd == -1) {
     fprintf(stderr, "Error: cannot open output file\n");
     return -1;
   }
@@ -291,15 +290,20 @@ void freeList(struct command *head) {
   }
 }
 
+// Function which handles input and output redirection
 static void redirect(struct command *current) {
   int fd = 0;
+
   if (current->input != NULL) {
-    
-    if (current->output != NULL){  
-      
-    }
-    
-  } else if (current->output != NULL) {
+    fd = open(current->input, O_RDONLY);
+    dup2(fd, STDIN_FILENO);
+    close(fd);
+  }
+
+  if (current->output != NULL) {
+    fd = open(current->output, O_WRONLY | O_TRUNC);
+    dup2(fd, STDOUT_FILENO);
+    close(fd);
   }
 }
 
@@ -310,32 +314,50 @@ int execute(struct command *cmd, int *retval) {
   int pid;
   struct command *current = cmd;
 
-  while (!current) {
+  while (current != NULL) {
     char wdir[ARGCHAR_MAX];
 
     // Performs checks for cd or pwd
-    if (strcmp(current->args[0], "cd")) { // current cmd is cd
-      chdir(current->args[1]);
+    if (!strcmp(current->args[0], "cd")) { // current cmd is cd
 
-      if (chdir(current->args[1]) != 0) {
+      if (chdir(current->args[1]) == -1) {
         perror("naur");
       }
-    } 
-    
-    else if (strcmp(current->args[0], "pwd")) { // current cmd is pwd
+
+    } else if (!strcmp(current->args[0], "pwd")) { // current cmd is pwd
       printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
-    } 
-    
-    else if (!fork()) { // Fork off child process
-      // execvp automatically locates to $PATH
-      execvp(current->args[0], current->args); // Execute command
-      perror("execv");                         // Coming back here is an error
-      exit(1);
-    } 
-    
-    else {
-      // Parent
-      waitpid(-1, retval, 0); // Wait for child to exit
+    } else {
+      if (!fork()) { // Fork off child process
+        redirect(current);
+        // execvp automatically locates to $PATH
+        execvp(current->args[0], current->args); // Execute command
+        perror("execv");                         // Coming back here is an error
+        exit(1);
+      } else {
+        // Parent
+        waitpid(-1, retval, 0); // Wait for child to exit
+      }
+    }
+    current = current->next;
+  }
+}
+
+// NOTE: used for testing purposes (will delete in final product)
+void printCMD(struct command *head) {
+  // Print args[] array
+  struct command *current = head;
+  int i;
+
+  while (current != NULL) {
+    for (i = 0; i < ARG_MAX && current->args[i] != NULL; i++) {
+      printf("%s ", current->args[i]);
+    }
+    printf("\n");
+    if (current->input != NULL) {
+      printf("<%s\n", current->input);
+    }
+    if (current->output != NULL) {
+      printf(">%s\n", current->output);
     }
     current = current->next;
   }
@@ -355,11 +377,7 @@ int main(void) {
     printf("sshell@ucd$ ");
     fflush(stdout);
     getCmd(buffer);
-    
-    char buffy[256] = "md5sum < est.txt >output.txt";
-    parseArgs(&cmd, buffy);
-    printf("%s\n", buffy);
-    
+
     // Builtin command
     if (!strcmp(buffer, "exit")) {
       fprintf(stderr, "Bye...\n");
@@ -376,9 +394,12 @@ int main(void) {
       continue;
     }
 
+    // printCMD(&cmd);
+
     // execute(&cmd, &retval);
 
     if (!fork()) { // Fork off child process
+      redirect(&cmd);
       // execvp automatically locates to $PATH
       execvp(cmd.args[0], cmd.args); // Execute command
       perror("execv");               // Coming back here is an error
