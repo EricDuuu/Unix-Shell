@@ -25,8 +25,8 @@ int parseErrors(char *buffer) { return -1; }
 
 // Uses string manipulation to separate the command and meta char and inserts
 // data into command struct. Notable string functions: strcmp, strcspn, strndup
-void parseRedirect(char **ptr, char **token, struct command **current,
-                   int *totalLen, int *argLen, char *symbol) {
+int parseRedirect(char **ptr, char **token, struct command **current,
+                  int *totalLen, int *argLen, char *symbol) {
 
   // Case: command < input and command< input
   if (*(*(ptr) + 1) == '\0') {
@@ -34,23 +34,46 @@ void parseRedirect(char **ptr, char **token, struct command **current,
     // Case: command< input requires parsing of string prior to meta char
     if (strcmp(*token, symbol) != 0) {
       int pos = strcspn(*token, symbol);
-      (*current)->args[*argLen++] = strndup(*token, pos);
+      (*current)->args[(*argLen)] = strndup(*token, pos);
     }
     // Grab the isolated input
     *token = strtok(NULL, " ");
+    if (*token == NULL) {
+      switch (*symbol) {
+      case '>':
+        fprintf(stderr, "Error: no output file\n");
+        break;
+      case '<':
+        fprintf(stderr, "Error: no input file\n");
+        break;
+      }
+      return -1;
+    }
     (*current)->input = strdup(*token);
 
   } else { // Case: command <input and command<input
 
-    // grab's input from after the meta char
+    if (*(*(ptr) + 1) == '\0') {
+      switch (*symbol) {
+      case '>':
+        fprintf(stderr, "Error: no output file\n");
+        break;
+      case '<':
+        fprintf(stderr, "Error: no input file\n");
+        break;
+      }
+      return -1;
+    }
+    // grabs input from after the meta char
     (*current)->input = strdup(*(ptr) + 1);
 
     // Case: command<input requires parsing of string prior to meta char
     if (**ptr != **token) {
       int pos = strcspn(*token, symbol);
-      (*current)->args[*argLen++] = strndup(*token, pos);
+      (*current)->args[(*argLen)] = strndup(*token, pos);
     }
   }
+  return 0;
 }
 
 // RETURN -1 if length of args go past max length
@@ -67,6 +90,7 @@ int errorArgLen(const int *totalLen) {
 // further use
 int parseArgs(struct command *cmd, char *buffer) {
   struct command *current = cmd;
+  int redirRetVal = 0;
 
   // totalLen for the cases where there is pipelining
   int argLen = 0;
@@ -89,22 +113,30 @@ int parseArgs(struct command *cmd, char *buffer) {
     if (ptr != NULL) {
       switch (*ptr) {
       case '<':
-        parseRedirect(&ptr, &token, &current, &totalLen, &argLen, "<");
-        totalLen++;
+        redirRetVal =
+            parseRedirect(&ptr, &token, &current, &totalLen, &argLen, "<");
+        if (redirRetVal == -1)
+          return -1;
         argLen++;
+        totalLen++;
         break;
 
       case '>':
-        parseRedirect(&ptr, &token, &current, &totalLen, &argLen, ">");
-        totalLen++;
+        redirRetVal =
+            parseRedirect(&ptr, &token, &current, &totalLen, &argLen, ">");
+        if (redirRetVal == -1)
+          return -1;
+
         argLen++;
+        totalLen++;
         break;
 
       case '|':
         // Cases: cmd| cmd cmd |cmd
-        if ((*(ptr + 1) == '\0' || *ptr != *token) && strcmp(token, "|") == 0) {
+        if ((*(ptr + 1) == '\0' || *ptr != *token) && strcmp(token, "|") != 0) {
           int pos = strcspn(token, "|");
           current->args[argLen++] = strndup(token, pos);
+          totalLen++;
         }
         // Cases: cmd | cmd
         current->args[argLen] = NULL;
@@ -113,7 +145,19 @@ int parseArgs(struct command *cmd, char *buffer) {
         argLen = 0;
 
         if (*(ptr + 1) != '\0') // Case: command |command, command|command
+        {
           current->args[argLen++] = ptr + 1;
+          totalLen++;
+        } else {
+          token = strtok(NULL, " ");
+          if (token == NULL) { // Error: command |
+            fprintf(stderr, "Error: missing command\n");
+            return -1;
+          }
+          current->args[argLen++] = token;
+          totalLen++;
+        }
+
         break;
       }
 
