@@ -291,14 +291,21 @@ void freeList(struct command *head) {
   }
 }
 
+// Function which handles input and output redirection
 static void redirect(struct command *current) {
   int fd = 0;
+
   if (current->input != NULL) {
     fd = open(current->input, O_RDONLY);
     dup2(fd, STDIN_FILENO);
     close(fd);
-  } //else if (current->output != NULL) {
-  //}
+  } 
+  
+  if (current->output != NULL) {
+    fd = open(current->output, O_WRONLY);
+    dup2(fd, STDOUT_FILENO);
+    close(fd);
+  }
 }
 
 // Function which handles execution of commands, piplining, and redirection
