@@ -20,9 +20,9 @@ struct command {
   struct command *next;
 };
 
-// Directory stack
+// Directory stack, Linked List
 struct dirstack {
-  char *memdir;
+  char memdir[ARGCHAR_MAX];
   struct dirstack *next;
 };
 
@@ -311,27 +311,61 @@ static void redirect(struct command *current) {
   }
 }
 
-// Function which handles pushd, popd, and dirs
+// Function which handles pushd
 void pushd(struct dirstack **head, struct command *cmd){
   struct dirstack *target = (struct dirstack*)malloc(sizeof (struct dirstack));
   struct command *current = cmd;
-  
+
+  // Gets current directory and moves it to top of stack
   getcwd(target->memdir, ARGCHAR_MAX);
+  
+  // Used for testing stack directory commands
+  //printf("check during pushd ! %s\n", target->memdir);
+
   target->next = *head;
-  chdir(current->args[1]);
+
+  // Changes to desired directory
+  if (chdir(current->args[1]) == -1) {
+    fprintf(stderr, "Error: cannot cd into directory\n");
+  } 
+  
   *head = target;
 }
 
-//void popd(){
-  
-//}
+// Function which handles popd
+void popd(struct dirstack **head){
+  struct dirstack *current = *head;
 
-void dirs(struct dirstack *head){
-  char wdir[ARGCHAR_MAX];
-  struct dirstack *current = head;
+  // Exit if there is no previous directory
+  if(*head == NULL){
+    exit(1);
+  }
+
+  // Change back to previous directory
+  if (chdir(current->memdir) == -1) {
+    fprintf(stderr, "Error: cannot cd into directory\n");
+  } 
+
+  // Move top of the stack
+  *head = (*head)->next;
   
+  free(current);
+}
+
+// Function which handles dirs 
+void dirs(struct dirstack **head){
+  char wdir[ARGCHAR_MAX];
+  struct dirstack *current = *head;
+
+  // Prints out current working directory
   printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
 
+  // For testing purposes
+  if (*head != NULL){
+    printf("%s\n", (*head)->memdir);
+  }
+
+  // While there is a directory in the stack, print it and move to the next in list
   while(current != NULL){
     printf("%s\n", current->memdir);
     current = current->next;
@@ -373,10 +407,13 @@ int execute(struct dirstack **head, struct command *cmd, int *retval) {
         printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
         
       } else if (strcmp(current->args[0], "pushd") == 0) {
-        pushd(dstack, cmd);
+        pushd(head, cmd);
+
+      } else if (strcmp(current->args[0], "popd") == 0) {
+        popd(head);
 
       } else if (strcmp(current->args[0], "dirs") == 0) {
-        dirs(*dstack);
+        dirs(head);
         
       } else {
         execvp(current->args[0], current->args); // Execute command
@@ -460,6 +497,8 @@ int main(void) {
     // printCMD(&cmd);
 
     execute(&dstack, &cmd, &retval);
+    // Used for testing stack directory commands
+    //printf("check after execute ! %s\n", dstack->memdir);
 
     /*
     if (!fork()) { // Fork off child process

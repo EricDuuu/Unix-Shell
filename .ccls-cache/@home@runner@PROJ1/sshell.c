@@ -22,7 +22,7 @@ struct command {
 
 // Directory stack
 struct dirstack {
-  char *memdir;
+  char memdir[ARGCHAR_MAX];
   struct dirstack *next;
 };
 
@@ -315,10 +315,15 @@ static void redirect(struct command *current) {
 void pushd(struct dirstack **head, struct command *cmd){
   struct dirstack *target = (struct dirstack*)malloc(sizeof (struct dirstack));
   struct command *current = cmd;
-  
+
   getcwd(target->memdir, ARGCHAR_MAX);
+  printf("check during pushd ! %s\n", target->memdir);
   target->next = *head;
-  chdir(current->args[1]);
+
+  if (chdir(current->args[1]) == -1) {
+    fprintf(stderr, "Error: cannot cd into directory\n");
+  } 
+  
   *head = target;
 }
 
@@ -331,6 +336,10 @@ void dirs(struct dirstack *head){
   struct dirstack *current = head;
   
   printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
+
+  if (head != NULL){
+    printf("%s\n", head->memdir);
+  }
 
   while(current != NULL){
     printf("%s\n", current->memdir);
@@ -373,10 +382,11 @@ int execute(struct dirstack **head, struct command *cmd, int *retval) {
         printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
         
       } else if (strcmp(current->args[0], "pushd") == 0) {
-        pushd(dstack, cmd);
+        pushd(head, cmd);
+        printf("check after pushd ! %s\n", head->memdir);
 
       } else if (strcmp(current->args[0], "dirs") == 0) {
-        dirs(*dstack);
+        dirs(*head);
         
       } else {
         execvp(current->args[0], current->args); // Execute command
