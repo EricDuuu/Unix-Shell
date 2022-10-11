@@ -1,4 +1,4 @@
-#include <fcntl.h>
+//include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +18,14 @@ struct command {
   char *input;
   char *output;
   struct command *next;
+};
+
+// Directory stack
+struct dirstack {
+  char *memdir[ARG_MAX];
+  char *head;
+  char *tail;
+  struct dirstack *next;
 };
 
 // Helper function to check if a char is any of these symbols

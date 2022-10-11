@@ -1,4 +1,4 @@
-#include <fcntl.h>
+//include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +18,14 @@ struct command {
   char *input;
   char *output;
   struct command *next;
+};
+
+// Directory stack
+struct dirstack {
+  char *memdir[ARG_MAX];
+  char *head;
+  char *tail;
+  struct dirstack *next;
 };
 
 // Helper function to check if a char is any of these symbols
@@ -297,6 +305,7 @@ static void redirect(struct command *current) {
     int fd = open(current->input, O_RDONLY);
     dup2(fd, STDIN_FILENO);
     close(fd);
+    
   } else if (current->output != NULL) {
     int fd = open(current->output, O_WRONLY | O_TRUNC);
     dup2(fd, STDOUT_FILENO);
@@ -313,26 +322,45 @@ int execute(struct command *cmd, int *retval) {
   while (current != NULL) {
     char wdir[ARGCHAR_MAX];
     int pid;
+    int wpipe[2];
+
+    // Creates pipe
+    if ((pipe(wpipe)) < 0){
+      fprintf(stderr, "pipe was fucked bro\n");
+      exit(1);
+    }
 
     if (!fork()) { // Fork off child process
-      redirect(current);
 
+      // Child
+      redirect(current);
+      
       // Performs checks for cd or pwd
-      if (strcmp(current->args[0], "cd") == 0) { // current cmd is cd
+      if (strcmp(current->args[0], "cd") == 0) { // Current cmd is cd
         if (chdir(current->args[1]) == -1) {
           fprintf(stderr, "Error: cannot cd into directory\n");
           *retval = 1;
           return -1;
         }
-      } else if (strcmp(current->args[0], "pwd") == 0) { // current cmd is pwd
+        
+      } else if (strcmp(current->args[0], "pwd") == 0) { // Current cmd is pwd
         printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
+        
       } else {
         execvp(current->args[0], current->args); // Execute command
         perror("execv");                         // Coming back here is an error
         exit(1);
       }
+
     } else {
       // Parent
+      //close(wpipe[0]);  // Close other end of pipe
+
+      // Parent process writes data to the pipe
+      //passage = fdopen(wpipe[1], "w");
+      //fprintf(passage, current->input);
+      //fclose(passage);
+      
       waitpid(-1, retval, 0); // Wait for child to exit
     }
 
