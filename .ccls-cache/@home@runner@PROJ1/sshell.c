@@ -1,4 +1,4 @@
-//include <fcntl.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,9 +22,7 @@ struct command {
 
 // Directory stack
 struct dirstack {
-  char *memdir[ARG_MAX];
-  char *head;
-  char *tail;
+  char *memdir;
   struct dirstack *next;
 };
 
@@ -313,11 +311,39 @@ static void redirect(struct command *current) {
   }
 }
 
+// Function which handles pushd, popd, and dirs
+void pushd(struct dirstack **head, struct command *cmd){
+  struct dirstack *target = (struct dirstack*)malloc(sizeof (struct dirstack));
+  struct command *current = cmd;
+  
+  getcwd(target->memdir, ARGCHAR_MAX);
+  target->next = *head;
+  chdir(current->args[1]);
+  *head = target;
+}
+
+//void popd(){
+  
+//}
+
+void dirs(struct dirstack *head){
+  char wdir[ARGCHAR_MAX];
+  struct dirstack *current = head;
+  
+  printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
+
+  while(current != NULL){
+    printf("%s\n", current->memdir);
+    current = current->next;
+  }
+}
+
 // Function which handles execution of commands, piplining, and redirection
 // Assume that input is sanitized for parsing
 // RETURN -1 indicates a launching error
-int execute(struct command *cmd, int *retval) {
+int execute(struct dirstack **head, struct command *cmd, int *retval) {
   struct command *current = cmd;
+  struct dirstack **dstack = head;
 
   while (current != NULL) {
     char wdir[ARGCHAR_MAX];
@@ -345,6 +371,12 @@ int execute(struct command *cmd, int *retval) {
         
       } else if (strcmp(current->args[0], "pwd") == 0) { // Current cmd is pwd
         printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
+        
+      } else if (strcmp(current->args[0], "pushd") == 0) {
+        pushd(dstack, cmd);
+
+      } else if (strcmp(current->args[0], "dirs") == 0) {
+        dirs(*dstack);
         
       } else {
         execvp(current->args[0], current->args); // Execute command
@@ -398,8 +430,12 @@ int main(void) {
     cmd.next = NULL;
     cmd.input = NULL;
     cmd.output = NULL;
-    int retval;
 
+    struct dirstack *dstack;
+    dstack = NULL;
+
+    int retval;
+    
     // Print prompt
     printf("sshell@ucd$ ");
     fflush(stdout);
@@ -423,7 +459,7 @@ int main(void) {
 
     // printCMD(&cmd);
 
-    execute(&cmd, &retval);
+    execute(&dstack, &cmd, &retval);
 
     /*
     if (!fork()) { // Fork off child process
@@ -440,6 +476,7 @@ int main(void) {
 
     fprintf(stdout, "+ completed '%s' [%d]\n", buffer, retval);
     freeList(&cmd);
+    //freeList(&dstack);
   }
 
   return EXIT_SUCCESS;
