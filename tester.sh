@@ -104,9 +104,15 @@ run_test_case () {
         strace -f \
             bash -c "echo -e \"${cmdline}\" | \
             ${SSHELL_EXEC}" >${outfile} 2>${errfile}
+
+        strace -f \
+            bash -c "echo -e \"${cmdline}\" | \
+            ${SSHELL_EXEC}"
     else
         bash -c "echo -e \"${cmdline}\" | \
             ${SSHELL_EXEC}" >${outfile} 2>${errfile}
+        bash -c "echo -e \"${cmdline}\" | \
+            ${SSHELL_EXEC}"
     fi
 
     # Get the return status, stdout and stderr of the test case

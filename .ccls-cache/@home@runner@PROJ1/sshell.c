@@ -257,7 +257,10 @@ static void getCmd(char *buffer) {
   char *nl;
 
   // Get command line
-  fgets(buffer, CMDLINE_MAX, stdin);
+  if (fgets(buffer, CMDLINE_MAX, stdin) == NULL) {
+    perror("fgets():");
+    exit(1);
+  }
 
   // Print command line if stdin is not provided by terminal
   if (!isatty(STDIN_FILENO)) {
@@ -326,7 +329,10 @@ int pushd(struct dirstack **head, char *filename) {
     return 1;
   }
   // Gets current directory and moves it to top of stack
-  getcwd(target->memdir, CMDLINE_MAX);
+  if (getcwd(target->memdir, CMDLINE_MAX) == NULL) {
+    perror("getcwd():");
+    exit(1);
+  }
 
   // Used for testing stack directory commands
   target->next = (*head);
@@ -369,82 +375,125 @@ void dirs(struct dirstack **head) {
   }
 }
 
+// Helper function to create pipes in the main process
+int countPipes(struct command *cmd) {
+  int count = 0;
+  while (cmd != NULL) {
+    count++;
+    cmd = cmd->next;
+  }
+  return count - 1;
+}
+
+int builtin(struct command **current, struct dirstack **head) {
+  int status = 0;
+  char wdir[CMDLINE_MAX];
+
+  if (strcmp((*current)->args[0], "pushd") == 0) { // Current cmd is pushd
+
+    pushd(head, (*current)->args[1]);
+    return status;
+
+  } else if (strcmp((*current)->args[0], "popd") == 0) { // Current cmd is popd
+
+    status = popd(head);
+    return status;
+
+  } else if (strcmp((*current)->args[0], "dirs") == 0) { // Current cmd is dirs
+
+    dirs(head);
+    return 0;
+
+  } else if (strcmp((*current)->args[0], "cd") == 0) { // Current cmd is cd
+
+    if (chdir((*current)->args[1]) == -1) {
+      fprintf(stderr, "Error: cannot cd into directory\n");
+      return 1;
+    }
+    return 0;
+
+  } else if (strcmp((*current)->args[0], "pwd") == 0) { // Current cmd is pwd
+
+    fprintf(stdout, "%s\n", getcwd(wdir, CMDLINE_MAX));
+    return 0;
+  }
+  return -1;
+}
+
 // Function which handles execution of commands, piplining, and redirection
 // Assume that input is sanitized for parsing
 // RETURN -1 or 1 indicates a launching error
 int execute(struct dirstack **head, struct command *cmd, char *buffer) {
   struct command *current = cmd;
 
-  int pipeInput = STDIN_FILENO;
-  int wpipe[2];
+  int pipeCount = countPipes(cmd);
+  int wpipe[pipeCount][2];
 
-  int statusLen = 0;
-  int statusArr[ARG_MAX];
-  int status = 0;
+  // Create all pipes beforehand
+  for (int i = 0; i < pipeCount; i++) {
 
-  while (current != NULL) {
-    char wdir[CMDLINE_MAX];
-    int pid;
-
-    // Creates pipe
-    if ((pipe(wpipe)) < 0) {
-      fprintf(stderr, "pipe error\n");
+    if (pipe(wpipe[i]) < 0) {
+      perror("Pipe creation:");
       exit(1);
     }
+  }
 
-    // Performs checks for cd or pwd
+  int statusLen = 0;
+  int statusArr[ARG_MAX * 100];
+  int status = 0;
 
-    // Performs check for stack directory commands
-    if (strcmp(current->args[0], "pushd") == 0) { // Current cmd is pushd
-      pushd(head, cmd->args[1]);
-      fprintf(stderr, "+ completed '%s' [%d]\n", buffer, status);
-      return status;
-    } else if (strcmp(current->args[0], "popd") == 0) { // Current cmd is popd
-      status = popd(head);
-      fprintf(stderr, "+ completed '%s' [%d]\n", buffer, status);
-      return status;
-    } else if (strcmp(current->args[0], "dirs") == 0) { // Current cmd is dirs
-      dirs(head);
-      fprintf(stderr, "+ completed '%s' [%d]\n", buffer, 0);
-      return 0;
-    } else if (strcmp(current->args[0], "cd") == 0) { // Current cmd is cd
-      if (chdir(current->args[1]) == -1) {
-        fprintf(stderr, "Error: cannot cd into directory\n");
-        fprintf(stderr, "+ completed '%s' [%d]\n", buffer, 1);
-        return -1;
-      }
-      fprintf(stderr, "+ completed '%s' [%d]\n", buffer, 0);
-      return 0;
-    } else if (strcmp(current->args[0], "pwd") == 0) { // Current cmd is pwd
-      fprintf(stdout, "%s\n", getcwd(wdir, CMDLINE_MAX));
-      fprintf(stderr, "+ completed '%s' [%d]\n", buffer, 0);
-      return 0;
-    }
+  if ((status = builtin(&current, head)) != -1) {
+    fprintf(stderr, "+ completed '%s' [%d]\n", buffer, status);
+    return status;
+  }
 
-    if (!(pid = fork())) { // Fork off child process
+  int currCommand = 0;
 
+  while (current != NULL) {
+
+    int pid = fork();
+
+    if (pid == 0) { // Fork off child process
       // Child
-      dup2(pipeInput, STDIN_FILENO);
-      if (current->next != NULL)
-        dup2(wpipe[1], STDOUT_FILENO);
-      close(wpipe[0]);
 
       redirect(current);
+
+      if (current != cmd) {
+        if (dup2(wpipe[currCommand - 1][0], STDIN_FILENO) < 0) {
+          perror("dup2");
+          exit(1);
+        }
+      }
+
+      if (current->next) {
+        if (dup2(wpipe[currCommand][1], STDOUT_FILENO) < 0) {
+          perror("dup2");
+          exit(1);
+        }
+      }
+
+      for (int i = 0; i < pipeCount; i++) {
+        close(wpipe[i][0]);
+        close(wpipe[i][1]);
+      }
 
       execvp(current->args[0], current->args); // Execute command
       perror("execv");                         // Coming back here is an error
       exit(1);
-
     } else {
-      // Parent process writes data to the pipe
-      waitpid(pid, &status, 0); // Wait for child to exit
-      close(wpipe[1]);
-      statusArr[statusLen++] = WEXITSTATUS(status);
-      if (current->next != NULL)
-        pipeInput = wpipe[0];
+      currCommand++;
+      current = current->next;
     }
+  }
 
-    current = current->next;
+  for (int i = 0; i < pipeCount; i++) {
+    close(wpipe[i][0]);
+    close(wpipe[i][1]);
+  }
+
+  for (int i = 0; i < pipeCount + 1; i++) {
+    wait(&status);
+    statusArr[statusLen++] = WEXITSTATUS(status);
   }
 
   fprintf(stderr, "+ completed '%s' ", buffer);
@@ -462,9 +511,11 @@ int main(void) {
   // Initialize directory stack head
   struct dirstack *dstack = (struct dirstack *)malloc(sizeof(struct dirstack));
   dstack->next = NULL;
-  
-  if(!getcwd(dstack->memdir, CMDLINE_MAX))
+
+  if (getcwd(dstack->memdir, CMDLINE_MAX) == NULL) {
     perror("getcwd():");
+    exit(1);
+  }
 
   while (1) {
     struct command cmd;
