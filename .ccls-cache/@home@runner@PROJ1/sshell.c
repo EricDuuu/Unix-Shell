@@ -399,18 +399,18 @@ int execute(struct dirstack **head, struct command *cmd, int *retval,
       }
     } else if (strcmp(current->args[0], "pwd") == 0) { // Current cmd is pwd
       fprintf(stdout, "%s\n", getcwd(wdir, ARGCHAR_MAX));
-    }     
+    }
 
     // Performs check for stack directory commands
-    if (strcmp(current->args[0], "pushd") == 0) {  // Current cmd is pushd
+    if (strcmp(current->args[0], "pushd") == 0) { // Current cmd is pushd
       pushd(head, cmd->args[1]);
       fprintf(stderr, "+ completed '%s' [%d]\n", buffer, status);
       return status;
-    } else if (strcmp(current->args[0], "popd") == 0) {  // Current cmd is popd
+    } else if (strcmp(current->args[0], "popd") == 0) { // Current cmd is popd
       status = popd(head);
       fprintf(stderr, "+ completed '%s' [%d]\n", buffer, status);
       return status;
-    } else if (strcmp(current->args[0], "dirs") == 0) {  // Current cmd is dirs
+    } else if (strcmp(current->args[0], "dirs") == 0) { // Current cmd is dirs
       dirs(head);
       fprintf(stderr, "+ completed '%s' [%d]\n", buffer, 0);
       return 0;
@@ -425,12 +425,10 @@ int execute(struct dirstack **head, struct command *cmd, int *retval,
       close(wpipe[0]);
 
       redirect(current);
-
-      // Performs checks for not cd or pwd
-      if (strcmp(current->args[0], "cd") != 0 || strcmp(current->args[0], "pwd") != 0) { 
-        execvp(current->args[0], current->args); // Execute command
-        perror("execv");                         // Coming back here is an error
-        exit(1);
+      execvp(current->args[0], current->args); // Execute command
+      perror("execv");                         // Coming back here is an error
+      exit(1);
+      
       }
       exit(0);
     } else {
