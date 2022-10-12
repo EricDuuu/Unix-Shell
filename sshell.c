@@ -449,6 +449,8 @@ int execute(struct dirstack **head, struct command *cmd, char *buffer) {
 
   int currCommand = 0;
 
+  // Reference
+  // https://stackoverflow.com/questions/916900/having-trouble-with-fork-pipe-dup2-and-exec-in-c/
   while (current != NULL) {
 
     int pid = fork();
@@ -478,7 +480,7 @@ int execute(struct dirstack **head, struct command *cmd, char *buffer) {
       }
 
       execvp(current->args[0], current->args); // Execute command
-      perror("execv");                         // Coming back here is an error
+      fprintf(stderr, "Error: command not found\n");
       exit(1);
     } else {
       currCommand++;
@@ -493,7 +495,11 @@ int execute(struct dirstack **head, struct command *cmd, char *buffer) {
 
   for (int i = 0; i < pipeCount + 1; i++) {
     wait(&status);
-    statusArr[statusLen++] = WEXITSTATUS(status);
+    if (i != 0 && status != 0) {
+      statusArr[statusLen++] = WEXITSTATUS(status + 1);
+    } else {
+      statusArr[statusLen++] = WEXITSTATUS(status);
+    }
   }
 
   fprintf(stderr, "+ completed '%s' ", buffer);
@@ -531,7 +537,7 @@ int main(void) {
     // Builtin command
     if (!strcmp(buffer, "exit")) {
       fprintf(stderr, "Bye...\n");
-      fprintf(stderr, "+ completed '%s' [%d]", buffer, 0);
+      fprintf(stderr, "+ completed '%s' [%d]\n", buffer, 0);
       break;
     }
 
