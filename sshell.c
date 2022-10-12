@@ -437,8 +437,6 @@ int execute(struct dirstack **head, struct command *cmd, char *buffer) {
     }
   }
 
-  int pipeInput = STDIN_FILENO;
-
   int statusLen = 0;
   int statusArr[ARG_MAX];
   int status = 0;
@@ -448,6 +446,8 @@ int execute(struct dirstack **head, struct command *cmd, char *buffer) {
     return status;
   }
 
+  int currCommand = 0;
+
   while (current != NULL) {
 
     int pid = fork();
@@ -455,12 +455,20 @@ int execute(struct dirstack **head, struct command *cmd, char *buffer) {
     if (!(pid)) { // Fork off child process
       // Child
 
-      dup2(pipeInput, STDIN_FILENO);
-      if (current->next != NULL)
-        dup2(wpipe[1], STDOUT_FILENO);
-      close(wpipe[0]);
-
       redirect(current);
+
+      if (currCommand > 0)
+        if (dup2(wpipe[(currCommand - 1) * 2], 0) < 0) {
+          printf("\n\nhi: %d\n\n", (currCommand - 1) * 2);
+          perror("dup2");
+          exit(1);
+        }
+      if (currCommand != pipeCount)
+        if (dup2(wpipe[((currCommand)*2) + 1], 1) < 0) {
+          printf("\n\nbye: %d\n\n", currCommand);
+          perror("dup2");
+          exit(1);
+        }
 
       execvp(current->args[0], current->args); // Execute command
       perror("execv");                         // Coming back here is an error
@@ -468,14 +476,14 @@ int execute(struct dirstack **head, struct command *cmd, char *buffer) {
 
     } else {
       // Parent process writes data to the pipe
-      waitpid(pid, &status, 0); // Wait for child to exit
-      close(wpipe[1]);
+      currCommand++;
+      current = current->next;
+      for (int i = 0; i < 2 * pipeCount; i++) {
+        close(wpipe[i]);
+      }
+      waitpid(0, &status, 0);
       statusArr[statusLen++] = WEXITSTATUS(status);
-      if (current->next != NULL)
-        pipeInput = wpipe[0];
     }
-
-    current = current->next;
   }
 
   fprintf(stderr, "+ completed '%s' ", buffer);
