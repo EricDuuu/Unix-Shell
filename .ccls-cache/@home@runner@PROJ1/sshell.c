@@ -20,7 +20,7 @@ struct command {
   struct command *next;
 };
 
-// Directory stack
+// Directory stack, Linked List
 struct dirstack {
   char memdir[ARGCHAR_MAX];
   struct dirstack *next;
@@ -36,7 +36,6 @@ int isMeta(char symbol) {
 // RETURN -1 for parsing errors
 int parseRedirect(char **ptr, char **token, struct command **current,
                   int *argLen, char *symbol) {
-
   // Case: command < input and command< input
   if (*(*(ptr) + 1) == '\0') {
 
@@ -117,6 +116,7 @@ int parsePipeline(char **ptr, char **token, struct command **current,
     (*argLen)++;
   }
   // Cases: cmd | cmd
+  // Allocate new command struct for pipeline
   (*current)->args[(*argLen)] = NULL;
   (*current)->next = (struct command *)malloc(sizeof(struct command));
   (*current) = (*current)->next;
@@ -276,8 +276,6 @@ static void getCmd(char *buffer) {
 // I forgot how to do so I looked it up:
 // https://stackoverflow.com/questions/6417158/c-how-to-free-nodes-in-the-linked-list
 void freeList(struct command *head) {
-  // head is not dynamically allocated
-
   // strndup and strdup both allocate memory and need to be freed
   if (head->input != NULL)
     free(head->input);
@@ -296,6 +294,15 @@ void freeList(struct command *head) {
   }
 }
 
+void freeStack(struct dirstack **head) {
+  struct dirstack *next = *head;
+  while (next) {
+    struct dirstack *nextTemp = next;
+    next = next->next;
+    free(nextTemp);
+  }
+}
+
 // Function which handles input and output redirection
 static void redirect(struct command *current) {
 
@@ -303,7 +310,7 @@ static void redirect(struct command *current) {
     int fd = open(current->input, O_RDONLY);
     dup2(fd, STDIN_FILENO);
     close(fd);
-    
+
   } else if (current->output != NULL) {
     int fd = open(current->output, O_WRONLY | O_TRUNC);
     dup2(fd, STDOUT_FILENO);
@@ -311,37 +318,49 @@ static void redirect(struct command *current) {
   }
 }
 
-// Function which handles pushd, popd, and dirs
-void pushd(struct dirstack **head, struct command *cmd){
-  struct dirstack *target = (struct dirstack*)malloc(sizeof (struct dirstack));
-  struct command *current = cmd;
+// Function which handles pushd
+int pushd(struct dirstack **head, char *filename) {
+  struct dirstack *target = (struct dirstack *)malloc(sizeof(struct dirstack));
 
+  if (chdir(filename) == -1) {
+    fprintf(stderr, "Error: no such directory\n");
+    return 1;
+  }
+  // Gets current directory and moves it to top of stack
   getcwd(target->memdir, ARGCHAR_MAX);
-  printf("check during pushd ! %s\n", target->memdir);
-  target->next = *head;
 
-  if (chdir(current->args[1]) == -1) {
-    fprintf(stderr, "Error: cannot cd into directory\n");
-  } 
-  
-  *head = target;
+  // Used for testing stack directory commands
+  target->next = (*head);
+  (*head) = target;
 }
 
-//void popd(){
-  
-//}
+// Function which handles popd
+int popd(struct dirstack **head) {
+  struct dirstack *current = (*head);
 
-void dirs(struct dirstack *head){
-  char wdir[ARGCHAR_MAX];
-  struct dirstack *current = head;
-  
-  printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
+  // Change back to previous directory
+  if (chdir(current->memdir) == -1) {
+    fprintf(stderr, "Error: cannot cd into directory\n");
+    return 1;
+  }
+  // Move top of the stack
+  (*head) = (*head)->next;
 
-  if (head != NULL){
-    printf("%s\n", head->memdir);
+  // Exit if there is no previous directory
+  if ((*head) == NULL) {
+    fprintf(stderr, "Error: directory stack empty\n");
+    return 1;
   }
 
-  while(current != NULL){
+  free(current);
+}
+
+// Function which handles dirs
+void dirs(struct dirstack **head) {
+  struct dirstack *current = (*head);
+  // While there is a directory in the stack, print it and move to the next in
+  // list
+  while (current != NULL) {
     printf("%s\n", current->memdir);
     current = current->next;
   }
@@ -349,91 +368,100 @@ void dirs(struct dirstack *head){
 
 // Function which handles execution of commands, piplining, and redirection
 // Assume that input is sanitized for parsing
-// RETURN -1 indicates a launching error
-int execute(struct dirstack **head, struct command *cmd, int *retval) {
+// RETURN -1 or 1 indicates a launching error
+int execute(struct dirstack **head, struct command *cmd, int *retval,
+            char *buffer) {
   struct command *current = cmd;
-  struct dirstack **dstack = head;
+  struct dirstack *dstack = (*head);
+
+  int pipeInput = STDIN_FILENO;
+  int wpipe[2];
+
+  int statusLen = 0;
+  int statusArr[ARG_MAX];
+  int status = 0;
 
   while (current != NULL) {
     char wdir[ARGCHAR_MAX];
     int pid;
-    int wpipe[2];
 
     // Creates pipe
-    if ((pipe(wpipe)) < 0){
-      fprintf(stderr, "pipe was fucked bro\n");
+    if ((pipe(wpipe)) < 0) {
+      fprintf(stderr, "pipe error\n");
       exit(1);
     }
 
-    if (!fork()) { // Fork off child process
+    // Performs checks for cd or pwd
+    if (strcmp(current->args[0], "cd") == 0) { // Current cmd is cd
+      if (chdir(current->args[1]) == -1) {
+        fprintf(stderr, "Error: cannot cd into directory\n");
+        return -1;
+      }
+    } else if (strcmp(current->args[0], "pwd") == 0) { // Current cmd is pwd
+      fprintf(stdout, "%s\n", getcwd(wdir, ARGCHAR_MAX));
+    }     
+
+    // Performs check for stack directory commands
+    if (strcmp(current->args[0], "pushd") == 0) {  // Current cmd is pushd
+      pushd(head, cmd->args[1]);
+      fprintf(stderr, "+ completed '%s' [%d]\n", buffer, status);
+      return status;
+    } else if (strcmp(current->args[0], "popd") == 0) {  // Current cmd is popd
+      status = popd(head);
+      fprintf(stderr, "+ completed '%s' [%d]\n", buffer, status);
+      return status;
+    } else if (strcmp(current->args[0], "dirs") == 0) {  // Current cmd is dirs
+      dirs(head);
+      fprintf(stderr, "+ completed '%s' [%d]\n", buffer, 0);
+      return 0;
+    }
+
+    if (!(pid = fork())) { // Fork off child process
 
       // Child
-      redirect(current);
-      
-      // Performs checks for cd or pwd
-      if (strcmp(current->args[0], "cd") == 0) { // Current cmd is cd
-        if (chdir(current->args[1]) == -1) {
-          fprintf(stderr, "Error: cannot cd into directory\n");
-          *retval = 1;
-          return -1;
-        }
-        
-      } else if (strcmp(current->args[0], "pwd") == 0) { // Current cmd is pwd
-        printf("%s\n", getcwd(wdir, ARGCHAR_MAX));
-        
-      } else if (strcmp(current->args[0], "pushd") == 0) {
-        pushd(head, cmd);
-        printf("check after pushd ! %s\n", head->memdir);
+      dup2(pipeInput, STDIN_FILENO);
+      if (current->next != NULL)
+        dup2(wpipe[1], STDOUT_FILENO);
+      close(wpipe[0]);
 
-      } else if (strcmp(current->args[0], "dirs") == 0) {
-        dirs(*head);
-        
-      } else {
+      redirect(current);
+
+      // Performs checks for not cd or pwd
+      if (strcmp(current->args[0], "cd") != 0 || strcmp(current->args[0], "pwd") != 0) { 
         execvp(current->args[0], current->args); // Execute command
         perror("execv");                         // Coming back here is an error
         exit(1);
       }
-
+      exit(0);
     } else {
-      // Parent
-      //close(wpipe[0]);  // Close other end of pipe
-
       // Parent process writes data to the pipe
-      //passage = fdopen(wpipe[1], "w");
-      //fprintf(passage, current->input);
-      //fclose(passage);
-      
-      waitpid(-1, retval, 0); // Wait for child to exit
+      waitpid(pid, &status, 0); // Wait for child to exit
+      close(wpipe[1]);
+      statusArr[statusLen++] = WEXITSTATUS(status);
+      if (current->next != NULL)
+        pipeInput = wpipe[0];
     }
 
     current = current->next;
   }
+
+  fprintf(stderr, "+ completed '%s' ", buffer);
+  for (int j = 0; j < statusLen; j++) {
+    fprintf(stderr, "[%d]", statusArr[j]);
+  }
+  fprintf(stderr, "\n");
+
   return 0;
-}
-
-// NOTE: used for testing purposes (will delete in final product)
-void printCMD(struct command *head) {
-  // Print args[] array
-  struct command *current = head;
-  int i;
-
-  while (current != NULL) {
-    for (i = 0; i < ARG_MAX && current->args[i] != NULL; i++) {
-      printf("%s ", current->args[i]);
-    }
-    printf("\n");
-    if (current->input != NULL) {
-      printf("<%s\n", current->input);
-    }
-    if (current->output != NULL) {
-      printf(">%s\n", current->output);
-    }
-    current = current->next;
-  }
 }
 
 int main(void) {
   char buffer[CMDLINE_MAX];
+
+  // Initialize directory stack head
+  struct dirstack *dstack = (struct dirstack *)malloc(sizeof(struct dirstack));
+  dstack->next = NULL;
+  if (!getcwd(dstack->memdir, ARGCHAR_MAX))
+    perror("getcwd() error");
 
   while (1) {
     struct command cmd;
@@ -441,11 +469,8 @@ int main(void) {
     cmd.input = NULL;
     cmd.output = NULL;
 
-    struct dirstack *dstack;
-    dstack = NULL;
-
     int retval;
-    
+
     // Print prompt
     printf("sshell@ucd$ ");
     fflush(stdout);
@@ -454,6 +479,7 @@ int main(void) {
     // Builtin command
     if (!strcmp(buffer, "exit")) {
       fprintf(stderr, "Bye...\n");
+      fprintf(stderr, "+ completed '%s' [%d]", buffer, 0);
       break;
     }
 
@@ -467,27 +493,14 @@ int main(void) {
       continue;
     }
 
-    // printCMD(&cmd);
-
-    execute(&dstack, &cmd, &retval);
-
-    /*
-    if (!fork()) { // Fork off child process
-      redirect(&cmd);
-      // execvp automatically locates to $PATH
-      execvp(cmd.args[0], cmd.args); // Execute command
-      perror("execv");               // Coming back here is an error
-      exit(1);
-    } else {
-      // Parent
-      waitpid(-1, &retval, 0); // Wait for child to exit
+    if (execute(&dstack, &cmd, &retval, buffer) != 0) {
+      freeList(&cmd);
+      continue;
     }
-    */
 
-    fprintf(stdout, "+ completed '%s' [%d]\n", buffer, retval);
     freeList(&cmd);
-    //freeList(&dstack);
   }
+  freeStack(&dstack);
 
   return EXIT_SUCCESS;
 }
