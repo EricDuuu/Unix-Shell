@@ -21,6 +21,7 @@ struct command {
 };
 
 // Directory stack, Linked List
+// Source http://www.cprogrammingnotes.com/question/dynamic-stack.html
 struct dirstack {
   char memdir[CMDLINE_MAX];
   struct dirstack *next;
@@ -440,8 +441,9 @@ int execute(struct dirstack **head, struct command *cmd, char *buffer) {
       exit(1);
     }
   }
+  
   int statusLen = 0;
-  int statusArr[ARG_MAX * 100];
+  int statusArr[ARG_MAX * pipeCount];
   int status = 0;
 
   if ((status = builtin(&current, head)) != -1) {
