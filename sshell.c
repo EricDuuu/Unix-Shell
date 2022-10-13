@@ -36,6 +36,7 @@ int isMeta(char symbol) {
 // RETURN -1 for parsing errors
 int parseRedirect(char **ptr, char **token, struct command **current,
                   int *argLen, char *symbol) {
+  
   // Case: command < input and command< input
   if (*(*(ptr) + 1) == '\0') {
 
@@ -48,6 +49,7 @@ int parseRedirect(char **ptr, char **token, struct command **current,
 
     // Grab the isolated input
     *token = strtok(NULL, " ");
+    
     if (*token == NULL || isMeta(**token)) { // Error: command < |
       switch (*symbol) {
       case '>':
@@ -59,13 +61,13 @@ int parseRedirect(char **ptr, char **token, struct command **current,
       }
       return -1;
     }
+    
     if (*symbol == '<')
       (*current)->input = strdup(*token);
     else
       (*current)->output = strdup(*token);
 
   } else { // Case: command <input and command<input
-
     if (*(*(ptr) + 1) == '\0' || isMeta(*(*(ptr) + 1))) { // Error: command <|
       switch (*symbol) {
       case '>':
@@ -77,6 +79,7 @@ int parseRedirect(char **ptr, char **token, struct command **current,
       }
       return -1;
     }
+    
     // grabs input/output from after the meta char
     if (*symbol == '<')
       (*current)->input = strdup(*ptr + 1);
@@ -90,7 +93,6 @@ int parseRedirect(char **ptr, char **token, struct command **current,
       (*argLen)++;
     }
   }
-
   return 0;
 }
 
@@ -126,17 +128,17 @@ int parsePipeline(char **ptr, char **token, struct command **current,
   (*current)->output = NULL;
   (*argLen) = 0;
 
-  if (*((*ptr) + 1) != '\0') // Case: command |command, command|command
-  {
+  if (*((*ptr) + 1) != '\0') { // Case: command |command, command|command
     if (isMeta(*((*ptr) + 1))) { // Error: command |<
       fprintf(stderr, "Error: missing command\n");
       return -1;
     }
-
     (*current)->args[(*argLen)] = (*ptr) + 1;
     (*argLen)++;
+    
   } else {
     *token = strtok(NULL, " ");
+    
     if (*token == NULL || isMeta(**token)) { // Error: command | , command | <
       fprintf(stderr, "Error: missing command\n");
       return -1;
@@ -144,7 +146,6 @@ int parsePipeline(char **ptr, char **token, struct command **current,
     (*current)->args[(*argLen)] = *token;
     (*argLen)++;
   }
-
   return 0;
 }
 
@@ -164,6 +165,7 @@ int mislocated(const struct command *head, const struct command *tail) {
 
   // Error cmd | cmd > cmd | cmd , cmd | cmd < cmd | cmd
   head = head->next;
+  
   while (head != NULL) {
     if (head == tail)
       break;
@@ -171,24 +173,27 @@ int mislocated(const struct command *head, const struct command *tail) {
     if (head->output != NULL) {
       fprintf(stderr, "Error: mislocated output redirection\n");
       return -1;
+      
     } else if (head->input != NULL) {
       fprintf(stderr, "Error: mislocated input redirection\n");
       return -1;
     }
     head = head->next;
   }
-
   return 0;
 }
 
 // Check if input and output files are valid files
 int fileCheck(struct command *head, struct command *tail) {
   int fd = 0;
+  
   if (head->input != NULL && open(head->input, O_RDONLY) == -1) {
     fprintf(stderr, "Error: cannot open input file\n");
     return -1;
   }
+  
   fd = open(tail->output, O_WRONLY | O_CREAT, 0644);
+  
   if (tail->output != NULL && fd == -1) {
     fprintf(stderr, "Error: cannot open output file\n");
     return -1;
@@ -202,10 +207,9 @@ int fileCheck(struct command *head, struct command *tail) {
 int parseArgs(struct command *cmd, char *buffer) {
   struct command *current = cmd;
   int argLen = 0;
-
   char *token = strtok(buffer, " ");
+  
   while (token != NULL) {
-
     if (errorArgLen(&argLen) == -1)
       return -1;
 
@@ -270,6 +274,7 @@ static void getCmd(char *buffer) {
 
   // Remove trailing newline from command line
   nl = strchr(buffer, '\n');
+  
   if (nl)
     *nl = '\0';
 }
@@ -285,19 +290,23 @@ void freeList(struct command *head) {
     free(head->output);
 
   struct command *next = head->next;
+  
   while (next) {
     struct command *nextTemp = next;
     next = next->next;
+    
     if (nextTemp->input != NULL)
       free(nextTemp->input);
     if (nextTemp->output != NULL)
       free(nextTemp->output);
+    
     free(nextTemp);
   }
 }
 
 void freeStack(struct dirstack **head) {
   struct dirstack *next = *head;
+  
   while (next) {
     struct dirstack *nextTemp = next;
     next = next->next;
@@ -328,13 +337,13 @@ int pushd(struct dirstack **head, char *filename) {
     fprintf(stderr, "Error: no such directory\n");
     return 1;
   }
-  // Gets current directory and moves it to top of stack
+  // Gets current directory
   if (getcwd(target->memdir, CMDLINE_MAX) == NULL) {
     perror("getcwd():");
     exit(1);
   }
 
-  // Used for testing stack directory commands
+  // Moves the current directory to the top of the stack
   target->next = (*head);
   (*head) = target;
   return 0;
@@ -378,6 +387,7 @@ void dirs(struct dirstack **head) {
 // Helper function to create pipes in the main process
 int countPipes(struct command *cmd) {
   int count = 0;
+  
   while (cmd != NULL) {
     count++;
     cmd = cmd->next;
@@ -390,22 +400,18 @@ int builtin(struct command **current, struct dirstack **head) {
   char wdir[CMDLINE_MAX];
 
   if (strcmp((*current)->args[0], "pushd") == 0) { // Current cmd is pushd
-
     pushd(head, (*current)->args[1]);
     return status;
 
   } else if (strcmp((*current)->args[0], "popd") == 0) { // Current cmd is popd
-
     status = popd(head);
     return status;
 
   } else if (strcmp((*current)->args[0], "dirs") == 0) { // Current cmd is dirs
-
     dirs(head);
     return 0;
 
   } else if (strcmp((*current)->args[0], "cd") == 0) { // Current cmd is cd
-
     if (chdir((*current)->args[1]) == -1) {
       fprintf(stderr, "Error: cannot cd into directory\n");
       return 1;
@@ -413,7 +419,6 @@ int builtin(struct command **current, struct dirstack **head) {
     return 0;
 
   } else if (strcmp((*current)->args[0], "pwd") == 0) { // Current cmd is pwd
-
     fprintf(stdout, "%s\n", getcwd(wdir, CMDLINE_MAX));
     return 0;
   }
@@ -425,19 +430,16 @@ int builtin(struct command **current, struct dirstack **head) {
 // RETURN -1 or 1 indicates a launching error
 int execute(struct dirstack **head, struct command *cmd, char *buffer) {
   struct command *current = cmd;
-
   int pipeCount = countPipes(cmd);
   int wpipe[pipeCount][2];
 
   // Create all pipes beforehand
   for (int i = 0; i < pipeCount; i++) {
-
     if (pipe(wpipe[i]) < 0) {
       perror("Pipe creation:");
       exit(1);
     }
   }
-
   int statusLen = 0;
   int statusArr[ARG_MAX * 100];
   int status = 0;
@@ -452,12 +454,11 @@ int execute(struct dirstack **head, struct command *cmd, char *buffer) {
   // Reference
   // https://stackoverflow.com/questions/916900/having-trouble-with-fork-pipe-dup2-and-exec-in-c/
   while (current != NULL) {
-
     int pid = fork();
 
     if (pid == 0) { // Fork off child process
+      
       // Child
-
       redirect(current);
 
       if (current != cmd) {
@@ -482,6 +483,7 @@ int execute(struct dirstack **head, struct command *cmd, char *buffer) {
       execvp(current->args[0], current->args); // Execute command
       fprintf(stderr, "Error: command not found\n");
       exit(1);
+      
     } else {
       currCommand++;
       current = current->next;
@@ -495,19 +497,20 @@ int execute(struct dirstack **head, struct command *cmd, char *buffer) {
 
   for (int i = 0; i < pipeCount + 1; i++) {
     wait(&status);
+    
     if (i != 0 && status != 0) {
       statusArr[statusLen++] = WEXITSTATUS(status + 1);
+      
     } else {
       statusArr[statusLen++] = WEXITSTATUS(status);
     }
   }
-
   fprintf(stderr, "+ completed '%s' ", buffer);
+  
   for (int j = 0; j < statusLen; j++) {
     fprintf(stderr, "[%d]", statusArr[j]);
   }
   fprintf(stderr, "\n");
-
   return 0;
 }
 
@@ -550,11 +553,9 @@ int main(void) {
       freeList(&cmd);
       continue;
     }
-
     execute(&dstack, &cmd, buffer);
     freeList(&cmd);
   }
   freeStack(&dstack);
-
   return EXIT_SUCCESS;
 }
